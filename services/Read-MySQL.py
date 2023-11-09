@@ -66,6 +66,3 @@ def hello_http(request):
     dest_connection.commit()
 
     return "yo yo"
-
-
-
