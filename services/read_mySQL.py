@@ -18,7 +18,7 @@ def connect_with_connector(instance_connection_name) -> sqlalchemy.engine.base.E
 
     connector = Connector(ip_type)
 
-    def getconn() -> pymysql.connections.Connection:
+    def get_connection() -> pymysql.connections.Connection:
         conn: pymysql.connections.Connection = connector.connect(
             instance_connection_name,
             "pymysql",
@@ -30,7 +30,7 @@ def connect_with_connector(instance_connection_name) -> sqlalchemy.engine.base.E
 
     pool = sqlalchemy.create_engine(
         "mysql+pymysql://",
-        creator=getconn,
+        creator=get_connection,
         pool_pre_ping=True
     )
     return pool
