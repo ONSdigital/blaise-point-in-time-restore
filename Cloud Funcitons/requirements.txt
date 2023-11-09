@@ -1,0 +1,7 @@
+SQLAlchemy==2.0.17
+PyMySQL==1.1.0
+cloud-sql-python-connector==1.2.4
+functions-framework==3.3.0
+
+requests==2.*
+google-auth==2.19.1
