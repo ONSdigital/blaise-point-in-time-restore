@@ -1,12 +1,8 @@
 import functions_framework
-import os
 import sqlalchemy
 import pymysql
 
 from google.cloud.sql.connector import Connector, IPTypes
-from sqlalchemy.sql import text
-from sqlalchemy import create_engine
-from sqlalchemy import MetaData, Table, insert
 
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_service import DatabaseService
