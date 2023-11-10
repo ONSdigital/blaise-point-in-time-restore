@@ -1,2 +1,2 @@
-from services.sql_cloud_service import SqlCloudService
+from services.database_connection_service import SqlCloudService
 

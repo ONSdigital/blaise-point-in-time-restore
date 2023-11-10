@@ -2,7 +2,7 @@ import pymysql
 import sqlalchemy
 from google.cloud.sql.connector import Connector, IPTypes
 
-from models.sql_connection_model import SqlConnectionModel
+from models.database_connection_model import SqlConnectionModel
 
 
 class SqlCloudService:
