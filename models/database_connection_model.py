@@ -1,7 +1,7 @@
 from google.cloud.sql.connector import IPTypes
 
 
-class SqlConnectionModel:
+class DatabaseConnectionModel:
     database_instance_name: str
     database_name: str
     database_username: str

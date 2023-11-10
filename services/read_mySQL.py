@@ -8,6 +8,9 @@ from sqlalchemy.sql import text
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData, Table, insert
 
+from models.database_connection_model import DatabaseConnectionModel
+from services.database_service import DatabaseService
+
 
 def connect_with_connector(instance_connection_name) -> sqlalchemy.engine.base.Engine:
     db_user = 'my-db-user'
@@ -38,31 +41,16 @@ def connect_with_connector(instance_connection_name) -> sqlalchemy.engine.base.E
 
 @functions_framework.http
 def hello_http(request):
-    source = connect_with_connector('db:instance:source ')
-    source_meta = MetaData()
-    source_meta.reflect(bind=source)
-    source_connection = source.connect()
+    source_connection_model = DatabaseConnectionModel()
+    source_database_service = DatabaseService(source_connection_model)
 
-    destination = connect_with_connector('db:instance:dest ')
-    dest_meta = MetaData()
-    dest_meta.reflect(bind=destination)
-    dest_connection = destination.connect()
+    destination_connection_model = DatabaseConnectionModel()
+    destination_database_service = DatabaseService(destination_connection_model)
 
     # declare tables
-    table = 'db_table'
-    src_table = Table(table, source_meta)
-    dest_table = Table(table, dest_meta)
-
+    table_name = "table"
     # select truncate and insert loop
-    sel = src_table.select()
-    res = source_connection.execute(sel)
+    table_data = source_database_service.get_table_data(table_name)
+    destination_database_service.write_table_data(table_name, table_data)
 
-    dest_connection.begin()
-    dest_connection.execute(text("truncate " + table))
-    for row in res:
-        stmt = insert(dest_table).values(row)
-        dest_connection.execute(stmt)
-
-    dest_connection.commit()
-
-    return "yo yo"
+    return "yo yo yo"
