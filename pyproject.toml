@@ -6,7 +6,7 @@ authors = ["Jake West <jacob.west@ons.gov.uk>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 mypy = "^1.6.1"
 sqlalchemy = "^2.0.23"
 pymysql = "^1.1.0"
