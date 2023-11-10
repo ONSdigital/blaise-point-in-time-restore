@@ -11,7 +11,6 @@ class DatabaseRestoreService:
         source_database_service = DatabaseService(source_connection_model)
         destination_database_service = DatabaseService(destination_connection_model)
 
-        # select truncate and insert loop
         table_data = source_database_service.get_table_data(table_name)
         destination_database_service.write_table_data(table_name, table_data)
 
