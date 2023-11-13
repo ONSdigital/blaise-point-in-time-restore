@@ -7,11 +7,11 @@ from services.database_service import DatabaseService
 class DatabaseRestoreService:
 
     @staticmethod
-    def database_restore(self, source_connection_model: DatabaseConnectionModel, destination_connection_model: DatabaseConnectionModel, table_name: str):
-        source_database_service = DatabaseService(source_connection_model)
-        destination_database_service = DatabaseService(destination_connection_model)
+    def restore_tables(self, connection_model: DatabaseConnectionModel,  table_names: [str], source_instance: str, destination_instance: str):
+        database_service = DatabaseService(connection_model)
 
-        table_data = source_database_service.get_table_data(table_name)
-        destination_database_service.write_table_data(table_name, table_data)
+        for table_name in table_names:
+            database_service.copy_table_data(table_name, source_instance, destination_instance)
 
         return
+

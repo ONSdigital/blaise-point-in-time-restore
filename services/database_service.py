@@ -1,7 +1,7 @@
 import pymysql
 import sqlalchemy
 from google.cloud.sql.connector import Connector
-from sqlalchemy import MetaData, Table, CursorResult, text, insert
+from sqlalchemy import MetaData, Table, text, insert
 
 from models.database_connection_model import DatabaseConnectionModel
 
@@ -10,41 +10,46 @@ class DatabaseService:
 
     def __init__(self, connection_model: DatabaseConnectionModel):
         self._connection_model = connection_model
-        self._database = self.__get_database(self._connection_model)
-        self._meta = MetaData()
-        self._meta.reflect(bind=self._database)
 
-    def get_table_data(self, table_name: str) -> CursorResult:
-        table = Table(table_name, self._meta)
-        select_statement = table.select()
-        with self._database.connect() as connection:
-            return connection.execute(select_statement)
+    def copy_table_data(self, table_name: str, source_instance_name: str, destination_instance_name: str):
+        source_database = self.__get_database(source_instance_name)
+        destination_database = self.__get_database(destination_instance_name)
+        source_table = self.__get_table(source_database, table_name)
+        destination_table = self.__get_table(destination_database, table_name)
 
-    def write_table_data(self, table_name: str, table_data: CursorResult):
-        table = Table(table_name, self._meta)
-        with self._database.connect() as connection:
-            connection.execute(text("truncate " + table_name))
-            for row in table_data:
-                insert_statement = insert(table).values(row)
-                connection.execute(insert_statement)
+        with source_database.connect() as source_connection:
+            table_data = source_connection.execute(source_table.select())
 
-            connection.commit()
+            with destination_database.connect() as dest_connection:
+                dest_connection.execute(text("truncate " + table_name))
+                for row in table_data:
+                    insert_statement = insert(destination_table).values(row)
+                    dest_connection.execute(insert_statement)
 
-    def __get_database(self, sql_connection: DatabaseConnectionModel) -> sqlalchemy.engine.base.Engine:
-        connection = self.__get_connection(sql_connection)
+                dest_connection.commit()
+
+    def __get_database(self, instance_name: str) -> sqlalchemy.engine.base.Engine:
+        connection = self.__get_connection(instance_name, self._connection_model)
 
         return sqlalchemy.create_engine(
-            url=sql_connection.database_url,
+            url=self._connection_model.database_url,
             creator=connection,
             pool_pre_ping=True
         )
 
     @staticmethod
-    def __get_connection(sql_connection: DatabaseConnectionModel) -> pymysql.connections.Connection:
+    def __get_table(database, table_name: str):
+        meta_data = MetaData()
+        meta_data.reflect(bind=database)
+
+        return Table(table_name, meta_data)
+
+    @staticmethod
+    def __get_connection(instance_name: str, sql_connection: DatabaseConnectionModel) -> pymysql.connections.Connection:
         connector = Connector(sql_connection.ip_connection_type)
 
         return connector.connect(
-            instance_connection_string=sql_connection.database_instance_name,
+            instance_connection_string=instance_name,
             driver=sql_connection.database_driver,
             user=sql_connection.database_username,
             password=sql_connection.database_password,
