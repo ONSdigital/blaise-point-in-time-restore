@@ -57,7 +57,7 @@ def test_database_restore_service_throws_an_error_when_no_questionnaires_are_pro
                                                       destination_instance_name)
 
     # assert
-    assert str(error.value) == 'You must provide a Questionnaire name'
+    assert str(error.value) == 'questionnaire_names cannot be empty or none'
 
 
 @pytest.mark.parametrize("questionnaire_names", [[], None])
@@ -95,7 +95,7 @@ def test_database_restore_service_throws_an_error_when_no_source_instance_is_pro
                                                       destination_instance_name)
 
     # assert
-    assert str(error.value) == 'You must provide a source instance name'
+    assert str(error.value) == 'source_instance_name cannot be empty or none'
 
 
 @pytest.mark.parametrize("source_instance_name", [None, '', ' ', '   '])
@@ -133,7 +133,7 @@ def test_database_restore_service_throws_an_error_when_no_destination_instance_i
                                                       destination_instance_name)
 
     # assert
-    assert str(error.value) == 'You must provide a destination instance name'
+    assert str(error.value) == 'destination_instance_name cannot be empty or none'
 
 
 @pytest.mark.parametrize("destination_instance_name", [None, '', ' ', '   '])

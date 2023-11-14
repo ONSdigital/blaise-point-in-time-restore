@@ -1,6 +1,4 @@
-import functions_framework
-
-from models.database_connection_model import DatabaseConnectionModel
+from functions.argument_validation import throw_error_if_empty_list, throw_error_if_empty_string
 from services.database_service import DatabaseService
 
 
@@ -11,20 +9,9 @@ class DatabaseRestoreService:
 
     def restore_questionnaire_data(self, questionnaire_names: [str], source_instance_name: str, destination_instance_name: str):
 
-        if not questionnaire_names:
-            raise Exception(
-                'You must provide a Questionnaire name'
-            )
-
-        if not source_instance_name or not source_instance_name.strip():
-            raise Exception(
-                'You must provide a source instance name'
-            )
-
-        if not destination_instance_name or not destination_instance_name.strip():
-            raise Exception(
-                'You must provide a destination instance name'
-            )
+        throw_error_if_empty_list(questionnaire_names, 'questionnaire_names')
+        throw_error_if_empty_string(source_instance_name, 'source_instance_name')
+        throw_error_if_empty_string(destination_instance_name, 'destination_instance_name')
 
         table_names = []
         for name in questionnaire_names:
