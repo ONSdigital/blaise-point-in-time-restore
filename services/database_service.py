@@ -3,7 +3,6 @@ import sqlalchemy
 
 from google.cloud.sql.connector import Connector
 from sqlalchemy import MetaData, Table, text, insert, Engine
-from sqlalchemy.orm import Session
 from models.database_connection_model import DatabaseConnectionModel
 
 
@@ -18,19 +17,22 @@ class DatabaseService:
         source_table = self.__get_table(source_database, table_name)
         destination_table = self.__get_table(destination_database, table_name)
 
-        destination_database_session = Session(destination_database)
-
         with source_database.connect() as source_connection:
+            print('source_connection ', source_connection)
             table_data = source_connection.execute(source_table.select())
 
-            with destination_database_session.begin():
-                destination_database_session.execute(text("truncate " + table_name))
+            with destination_database.connect() as destination_connection:
+                print('destination_connection ', destination_connection)
+                destination_connection.begin()
+                destination_connection.execute(text("truncate " + table_name))
                 for row in table_data:
                     insert_statement = insert(destination_table).values(row)
-                    destination_database_session.execute(insert_statement)
+                    destination_connection.execute(insert_statement)
+                destination_connection.commit()
 
     def __get_database(self, instance_name: str) -> Engine:
         connection = self.__get_connection(instance_name, self._connection_model)
+        print(F'connection {instance_name} {connection}')
 
         return sqlalchemy.create_engine(
             url=self._connection_model.database_url,
@@ -51,7 +53,7 @@ class DatabaseService:
 
         return connector.connect(
             instance_connection_string=instance_name,
-            driver=sql_connection.database_driver,  # pymysql
+            driver=sql_connection.database_driver,
             user=sql_connection.database_username,
             password=sql_connection.database_password,
             db=sql_connection.database_name,
