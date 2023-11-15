@@ -29,8 +29,6 @@ class DatabaseService:
                     insert_statement = insert(destination_table).values(row)
                     destination_database_session.execute(insert_statement)
 
-
-
     def __get_database(self, instance_name: str) -> Engine:
         connection = self.__get_connection(instance_name, self._connection_model)
 
