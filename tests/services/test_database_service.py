@@ -2,7 +2,7 @@ from unittest.mock import call, MagicMock, patch, Mock
 import pytest
 import sqlalchemy
 from google.cloud.sql.connector import IPTypes, Connector
-from sqlalchemy import Table
+from sqlalchemy import Table, text, Result
 from sqlalchemy.orm import Session
 
 from models.database_connection_model import DatabaseConnectionModel
@@ -83,6 +83,7 @@ class TestCopyFunctionality:
             [call(url=connection_model.database_url, creator=mock_source_database_connection, pool_pre_ping=True),
              call(url=connection_model.database_url, creator=mock_destination_database_connection, pool_pre_ping=True)])
 
+    @patch.object(Table, 'delete')
     @patch.object(Table, 'select')
     @patch.object(Session, 'execute')
     @patch.object(sqlalchemy, 'create_engine')
@@ -92,27 +93,27 @@ class TestCopyFunctionality:
                                                                              __mock_engine,
                                                                              mock_session_execute,
                                                                              mock_table_select,
+                                                                             mock_table_delete,
                                                                              service_under_test):
         # arrange
         table_name = 'LMS2301_DD1_FORM'
         table_select = F'select * from {table_name}'
+        table_delete = F'delete * from {table_name}'
         source_instance_name = 'b4team:europe-west2:blaise-dev-test-clone'
         destination_instance_name = 'blaise-dev-test'
 
-        mock_session_execute_source = MagicMock()
-        mock_session_execute_destination = MagicMock()
-
-        mock_session_execute.side_effect = [
-            mock_session_execute_source,
-            mock_session_execute_destination
-        ]
-
         mock_table_select.return_value = table_select
+        mock_table_delete.return_value = table_delete
 
+        mock_session_execute.return_value = ['1', '2', '3']
+
+        expected_calls = [
+            call(table_select),
+            call(table_delete),
+        ]
         # act
         service_under_test.copy_table_data(table_name, source_instance_name, destination_instance_name)
 
         # assert
-        print(mock_session_execute_source)
-        mock_session_execute_source.assert_called_with(table_select)
-
+        print(mock_session_execute.call_args_list)
+        mock_session_execute.assert_has_calls(expected_calls)
