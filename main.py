@@ -1,6 +1,7 @@
 from google.cloud.sql.connector import IPTypes
 
 from models.database_connection_model import DatabaseConnectionModel
+from services.database_connection_service import DatabaseConnectionService
 from services.database_orm_service import DatabaseOrmService
 
 connection_model = DatabaseConnectionModel(
@@ -13,6 +14,6 @@ connection_model = DatabaseConnectionModel(
     database_ip_connection_type=IPTypes.PUBLIC
 )
 
-databaseOrmService = DatabaseOrmService(connection_model)
-
-databaseOrmService.get_table_data("LMS2310_GP1_Form")
+source_database = DatabaseConnectionService(connection_model).get_database()
+databaseOrmService = DatabaseOrmService()
+databaseOrmService.get_table_data("LMS2310_GP1_Form", source_database)

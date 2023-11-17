@@ -2,14 +2,12 @@ from datetime import datetime
 from typing import Optional, Any
 
 from sqlalchemy import BIGINT, Integer, String, DateTime, BLOB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
+from sqlalchemy.orm import Mapped, mapped_column
+
+from models.base_table import Base
 
 
-class Base(DeclarativeBase):
-    pass
-
-
-class CreateTableModelFactory:
+class TableFactory:
     @staticmethod
     def create_form_table_model(table_name: str):
 
