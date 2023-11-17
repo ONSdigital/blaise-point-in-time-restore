@@ -51,7 +51,7 @@ class DatabaseService:
 
     @staticmethod
     def __get_connection(instance_name: str, sql_connection: DatabaseConnectionModel) -> pymysql.connections.Connection:
-        connector = Connector(sql_connection.ip_connection_type)
+        connector = Connector(sql_connection.database_ip_connection_type)
 
         return connector.connect(
             instance_connection_string=instance_name,
