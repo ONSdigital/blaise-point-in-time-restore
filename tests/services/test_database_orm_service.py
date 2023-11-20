@@ -31,11 +31,11 @@ class TestOrmFunctionality:
 
     def test_get_table_data_returns_expected_data(self, service_under_test, mock_source_database):
         # arrange
-        questionnaire_name = "LMS2310_GP1_Form"
+        questionnaire_table = "LMS2310_GP1_Form"
         expected = [900001, 900021]
 
         # act
-        actual = service_under_test.get_case_ids(questionnaire_name, mock_source_database)
+        actual = service_under_test.get_case_ids(questionnaire_table, mock_source_database)
 
         # assert
         assert len(actual) == len(expected)
