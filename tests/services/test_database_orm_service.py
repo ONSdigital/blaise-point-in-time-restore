@@ -1,7 +1,10 @@
 import pytest
+from alchemy_mock.mocking import AlchemyMagicMock
 from google.cloud.sql.connector import IPTypes
 from sqlalchemy import Engine
+from sqlalchemy.orm import sessionmaker
 
+from functions.factories.table_factory import TableFactory
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_connection_service import DatabaseConnectionService
 from services.database_orm_service import DatabaseOrmService
@@ -29,13 +32,25 @@ class TestOrmFunctionality:
     def service_under_test(self) -> DatabaseOrmService:
         return DatabaseOrmService()
 
-    def test_get_table_data_returns_expected_data(self, service_under_test, mock_source_database):
+    @pytest.fixture()
+    def mock_session(self) -> sessionmaker:
+        session = AlchemyMagicMock()
+        test_table_model = TableFactory().create_form_table_model('test_table')
+        session.add(test_table_model(Serial_Number='900001'))
+        session.add(test_table_model(Serial_Number='900002'))
+        return session
+
+    def test_get_table_data_returns_expected_data(self, service_under_test):
         # arrange
-        questionnaire_table = "LMS2310_GP1_Form"
+        questionnaire_table = "test_table"
+        mock_session = AlchemyMagicMock()
+        test_table_model = TableFactory().create_form_table_model(questionnaire_table)
+        mock_session.add(test_table_model(FormID=1, Serial_Number=900001))
+        mock_session.add(test_table_model(FormID=2, Serial_Number=900002))
         expected = [900001, 900021]
 
         # act
-        actual = service_under_test.get_case_ids(questionnaire_table, mock_source_database)
+        actual = service_under_test.get_case_ids2(test_table_model, mock_session)
 
         # assert
         assert len(actual) == len(expected)
