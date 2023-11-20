@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional
 
 from sqlalchemy import BIGINT, Integer, String, DateTime, BLOB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -14,6 +14,7 @@ class TableFactory:
         class QuestionnaireFormTable(Base):
 
             __tablename__ = table_name
+            __table_args__ = {'extend_existing': True}
             Serial_Number: Mapped[int] = mapped_column(BIGINT())
             FormID: Mapped[int] = mapped_column(BIGINT(), primary_key=True, autoincrement=True)
             ValidationStatus: Mapped[Optional[int]] = mapped_column(Integer())

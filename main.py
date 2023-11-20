@@ -1,4 +1,5 @@
 from google.cloud.sql.connector import IPTypes
+from sqlalchemy.orm import Session
 
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_connection_service import DatabaseConnectionService
@@ -15,5 +16,6 @@ connection_model = DatabaseConnectionModel(
 )
 
 source_database = DatabaseConnectionService(connection_model).get_database()
+session = Session(source_database)
 databaseOrmService = DatabaseOrmService()
-databaseOrmService.get_table_data("LMS2310_GP1_Form", source_database)
+databaseOrmService.get_case_ids("LMS2310_GP1_Form", session)

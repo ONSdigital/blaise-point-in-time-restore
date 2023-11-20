@@ -1,8 +1,7 @@
 import pytest
 from google.cloud.sql.connector import IPTypes
-from mock_alchemy.mocking import AlchemyMagicMock
+from mock_alchemy.mocking import UnifiedAlchemyMagicMock
 from sqlalchemy import Engine
-from sqlalchemy.orm import sessionmaker
 
 from functions.factories.table_factory import TableFactory
 from models.database_connection_model import DatabaseConnectionModel
@@ -33,25 +32,45 @@ class TestOrmFunctionality:
         return DatabaseOrmService()
 
     @pytest.fixture()
-    def mock_session(self) -> sessionmaker:
-        session = AlchemyMagicMock()
-        test_table_model = TableFactory().create_form_table_model('test_table')
-        session.add(test_table_model(Serial_Number='900001'))
-        session.add(test_table_model(Serial_Number='900002'))
+    def mock_table(self):
+        return TableFactory.create_form_table_model("LMS2310_GP1_Form")
+
+    @pytest.fixture()
+    def mock_source_session(self, mock_table):
+        session = UnifiedAlchemyMagicMock()
+        session.add(mock_table(FormID=1, Serial_Number=900001))
+        session.add(mock_table(FormID=2, Serial_Number=900002))
+        session.add(mock_table(FormID=2, Serial_Number=900003))
         return session
 
-    def test_get_table_data_returns_expected_data(self, service_under_test):
+    @pytest.fixture()
+    def mock_destination_session(self, mock_table):
+        return UnifiedAlchemyMagicMock()
+
+    def test_get_table_data_returns_expected_data(self,
+                                                  service_under_test,
+                                                  mock_table,
+                                                  mock_source_session):
         # arrange
-        questionnaire_table = "test_table"
-        mock_session = AlchemyMagicMock()
-        test_table_model = TableFactory().create_form_table_model(questionnaire_table)
-        mock_session.add(test_table_model(FormID=1, Serial_Number=900001))
-        mock_session.add(test_table_model(FormID=2, Serial_Number=900002))
-        expected = [900001, 900021]
+        expected = [900001, 900002, 900003]
 
         # act
-        actual = service_under_test.get_case_ids2(mock_session, test_table_model)
+        actual = service_under_test.get_case_ids(mock_table, mock_source_session)
 
         # assert
         assert len(actual) == len(expected)
         assert all([a == b for a, b in zip(actual, expected)])
+
+    def test_copy_table_data_copies_source_to_destination(self,
+                                                          service_under_test,
+                                                          mock_table,
+                                                          mock_source_session,
+                                                          mock_destination_session):
+        # arrange
+        expected = mock_source_session.query(mock_table).all()
+
+        # act
+        service_under_test.copies_table_data(mock_table, mock_source_session, mock_destination_session)
+
+        # assert
+        assert len(mock_destination_session.query(mock_table).all()) == len(expected)
