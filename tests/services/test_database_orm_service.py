@@ -38,9 +38,9 @@ class TestOrmFunctionality:
     @pytest.fixture()
     def mock_source_session(self, mock_table):
         session = UnifiedAlchemyMagicMock()
-        session.add(mock_table(FormID=1, Serial_Number=900001))
-        session.add(mock_table(FormID=2, Serial_Number=900002))
-        session.add(mock_table(FormID=2, Serial_Number=900003))
+        session.merge(mock_table(FormID=1, Serial_Number=900001))
+        session.merge(mock_table(FormID=2, Serial_Number=900002))
+        session.merge(mock_table(FormID=2, Serial_Number=900003))
         return session
 
     @pytest.fixture()
