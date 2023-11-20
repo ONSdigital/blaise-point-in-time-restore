@@ -15,9 +15,9 @@ class DatabaseOrmService:
 
     def copies_table_data(self, table: Table, source_database_session: Session, destination_database_session: Session) -> None:
         table_rows = source_database_session.query(table).all()
-        destination_database_session.begin()
+
         for table_row in table_rows:
-            print(table_row.Serial_Number)
-            destination_database_session.add(table_row)
-        destination_database_session.rollback()
+            local_table_row = destination_database_session.merge(table_row)
+            destination_database_session.merge(local_table_row)
+
 

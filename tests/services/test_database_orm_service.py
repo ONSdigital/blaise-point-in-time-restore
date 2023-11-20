@@ -72,5 +72,6 @@ class TestOrmFunctionality:
         # act
         service_under_test.copies_table_data(mock_table, mock_source_session, mock_destination_session)
 
+
         # assert
         assert len(mock_destination_session.query(mock_table).all()) == len(expected)
