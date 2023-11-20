@@ -1,6 +1,6 @@
 import pytest
-from alchemy_mock.mocking import AlchemyMagicMock
 from google.cloud.sql.connector import IPTypes
+from mock_alchemy.mocking import AlchemyMagicMock
 from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
 
@@ -50,7 +50,7 @@ class TestOrmFunctionality:
         expected = [900001, 900021]
 
         # act
-        actual = service_under_test.get_case_ids2(test_table_model, mock_session)
+        actual = service_under_test.get_case_ids2(mock_session, test_table_model)
 
         # assert
         assert len(actual) == len(expected)
