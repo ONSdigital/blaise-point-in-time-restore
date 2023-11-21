@@ -6,7 +6,7 @@ from sqlalchemy import Table, text, Result
 from sqlalchemy.orm import Session
 
 from models.database_connection_model import DatabaseConnectionModel
-from services.database_service import DatabaseService
+from services.database_service_old import DatabaseService
 
 
 class TestCopyFunctionality:

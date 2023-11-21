@@ -1,75 +1,54 @@
 import pytest
-from sqlalchemy.testing.schema import Table
 
 from functions.factories.table_factory import TableFactory
 from services.database_orm_service2 import DatabaseOrmService2
-from tests.services.fake_database_table_service import FakeDatabaseTableService
+from tests.services.fake_database_service import FakeDatabaseService
 
 
 class TestOrmFunctionality:
-    @pytest.fixture()
-    def source_table(self) -> Table:
-        return TableFactory.create_form_table_model("MockTable")
-
-    @pytest.fixture()
-    def destination_table(self) -> Table:
-        return TableFactory.create_form_table_model("MockTable")
-
-    @pytest.fixture()
-    def fake_source_database_table_service(self, source_table) -> FakeDatabaseTableService:
-        return FakeDatabaseTableService(source_table, "source")
-
-    @pytest.fixture()
-    def fake_destination_database_table_service(self, destination_table) -> FakeDatabaseTableService:
-        return FakeDatabaseTableService(destination_table, "destination")
-
+    fake_source_database = FakeDatabaseService("source")
+    fake_destination_database = FakeDatabaseService("destination")
+    
     @pytest.fixture()
     def service_under_test(self) -> DatabaseOrmService2:
-        return DatabaseOrmService2()
+        return DatabaseOrmService2(self.fake_source_database, self.fake_destination_database)
 
-    def test_copy_table_data_copies_source_to_destination(self,
-                                                          source_table,
-                                                          service_under_test,
-                                                          fake_source_database_table_service,
-                                                          fake_destination_database_table_service):
+    def test_copy_table_data_copies_source_to_destination(self, service_under_test):
         # arrange
-        fake_source_database_table_service.add_record(source_table(FormID=1, Serial_Number=900001))
-        fake_source_database_table_service.add_record(source_table(FormID=2, Serial_Number=900002))
-        fake_source_database_table_service.add_record(source_table(FormID=3, Serial_Number=900003))
-        expected = fake_source_database_table_service.get_records()
+        table_name = "LMS2211_FML"
+        table = TableFactory.create_form_table_model(table_name)
+        self.fake_source_database.add_record(table(FormID=1, Serial_Number=900001))
+        self.fake_source_database.add_record(table(FormID=2, Serial_Number=900002))
+        self.fake_source_database.add_record(table(FormID=3, Serial_Number=900003))
+        expected = self.fake_source_database.get_records(table_name)
 
         # act
-        service_under_test.copies_table_data(fake_source_database_table_service,
-                                             fake_destination_database_table_service)
+        service_under_test.copies_table_data(table_name)
 
-        actual = fake_destination_database_table_service.get_records()
+        actual = self.fake_destination_database.get_records(table_name)
 
         # assert
-        assert len(actual) == len(expected)
+        assert len(actual) == 3
         assert all([a == b for a, b in zip(actual, expected)])
 
-    def test_copy_table_data_deletes_any_existing_data_from_the_destination_table(self,
-                                                                                  source_table,
-                                                                                  destination_table,
-                                                                                  service_under_test,
-                                                                                  fake_source_database_table_service,
-                                                                                  fake_destination_database_table_service):
+    def test_copy_table_data_deletes_any_existing_data_from_the_destination_table(self, service_under_test):
         # arrange
-        fake_source_database_table_service.add_record(source_table(FormID=1, Serial_Number=900001))
-        fake_source_database_table_service.add_record(source_table(FormID=2, Serial_Number=900002))
-        fake_source_database_table_service.add_record(source_table(FormID=3, Serial_Number=900003))
-        expected = fake_source_database_table_service.get_records()
+        table_name = "LMS2211_FML"
+        table = TableFactory.create_form_table_model(table_name)
+        self.fake_source_database.add_record(table(FormID=1, Serial_Number=900001))
+        self.fake_source_database.add_record(table(FormID=2, Serial_Number=900002))
+        self.fake_source_database.add_record(table(FormID=3, Serial_Number=900003))
+        expected = self.fake_source_database.get_records(table_name)
 
-        fake_destination_database_table_service.add_record(destination_table(FormID=4, Serial_Number=900004))
-        fake_destination_database_table_service.add_record(destination_table(FormID=5, Serial_Number=900005))
-        fake_destination_database_table_service.add_record(destination_table(FormID=6, Serial_Number=900006))
+        self.fake_destination_database.add_record(table(FormID=4, Serial_Number=900004))
+        self.fake_destination_database.add_record(table(FormID=5, Serial_Number=900005))
+        self.fake_destination_database.add_record(table(FormID=6, Serial_Number=900006))
 
         # act
-        service_under_test.copies_table_data(fake_source_database_table_service,
-                                             fake_destination_database_table_service)
+        service_under_test.copies_table_data(table_name)
 
-        actual = fake_destination_database_table_service.get_records()
+        actual = self.fake_destination_database.get_records(table_name)
 
         # assert
-        assert len(actual) == len(expected)
+        assert len(actual) == 3
         assert all([a == b for a, b in zip(actual, expected)])
