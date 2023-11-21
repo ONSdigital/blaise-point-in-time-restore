@@ -5,6 +5,8 @@ from functions.factories.table_factory import TableFactory
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_connection_service import DatabaseConnectionService
 from services.database_orm_service import DatabaseOrmService
+from services.database_orm_service2 import DatabaseOrmService2
+from services.database_table_service import DatabaseTableService
 
 connection_model_source = DatabaseConnectionModel(
     instance_name="ons-blaise-v2-dev-b4team:europe-west2:bens-clone2",
@@ -37,4 +39,11 @@ source_table_model = TableFactory.create_form_table_model("LMS2310_GP1_Form")
 # databaseOrmService.get_case_ids(source_table_model, source_session)
 # databaseOrmService.get_case_ids(destination_table_model, destination_session)
 
-databaseOrmService.copies_table_data(source_table_model, source_session, destination_session)
+#databaseOrmService.copies_table_data(source_table_model, source_session, destination_session)
+
+source_database_table_service = DatabaseTableService(source_table_model, source_session)
+destination_database_table_service = DatabaseTableService(source_table_model, destination_session)
+
+databaseOrmService2 = DatabaseOrmService2()
+
+databaseOrmService2.copies_table_data(source_database_table_service, destination_database_table_service)

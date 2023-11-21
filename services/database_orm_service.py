@@ -17,9 +17,10 @@ class DatabaseOrmService:
         with source_database_session.begin():
             table_rows = source_database_session.query(table).all()
 
-        with destination_database_session.begin():
-            for table_row in table_rows:
-                destination_database_session.merge(table_row)
+            with destination_database_session.begin():
+                for table_row in table_rows:
+                    destination_database_session.merge(table_row)
+
 
 
 
