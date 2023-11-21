@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 class DatabaseOrmService:
     def get_case_ids(self, table: Table, source_database_session: Session) -> [int]:
-
+        print("start")
         case_id_list = []
         table_rows = source_database_session.query(table).all()
         for table_row in table_rows:

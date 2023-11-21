@@ -37,13 +37,13 @@ source_table_model = TableFactory.create_form_table_model("LMS2310_GP1_Form")
 # destination_table_model = TableFactory.create_form_table_model("LMS2310_GP1_Form")
 
 # databaseOrmService.get_case_ids(source_table_model, source_session)
-# databaseOrmService.get_case_ids(destination_table_model, destination_session)
+# databaseOrmService.get_case_ids(source_table_model, destination_session)
 
-#databaseOrmService.copies_table_data(source_table_model, source_session, destination_session)
+# databaseOrmService.copies_table_data(source_table_model, source_session, destination_session)
 
-source_database_table_service = DatabaseTableService(source_table_model, source_session)
-destination_database_table_service = DatabaseTableService(source_table_model, destination_session)
+# source_database_table_service = DatabaseTableService(source_table_model, source_session)
+# destination_database_table_service = DatabaseTableService(source_table_model, destination_session)
 
-databaseOrmService2 = DatabaseOrmService2()
+# databaseOrmService2 = DatabaseOrmService2()
 
-databaseOrmService2.copies_table_data(source_database_table_service, destination_database_table_service)
+# databaseOrmService2.copies_table_data(source_database_table_service, destination_database_table_service)
