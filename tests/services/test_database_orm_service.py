@@ -57,6 +57,7 @@ class TestOrmFunctionality:
         service_under_test.copy_table_data(self.table_name)
 
         # assert
+        assert mock_destination_session.merge.call_count == 3
         mock_destination_session.merge.assert_has_calls(expected_destination_database_calls)
 
     def test_copy_table_data_removes_any_existing_data_from_the_destination_database_before_copying(self,

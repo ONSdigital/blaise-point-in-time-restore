@@ -8,9 +8,12 @@ from models.base_table import Base
 
 
 class TableFactory:
-    tables: dict[str, Table] = {}
+
+    def __init__(self):
+        self._tables: dict[str, Table] = {}
 
     def get_form_table_model(self, table_name: str):
+
         class QuestionnaireFormTable(Base):
             __tablename__ = table_name
             __table_args__ = {'extend_existing': True}
@@ -26,7 +29,7 @@ class TableFactory:
             LastModification: Mapped[Optional[datetime]] = mapped_column(DateTime())
             DataStream = mapped_column(BLOB())
 
-        if table_name not in self.tables.keys():
-            self.tables[table_name] = QuestionnaireFormTable
+        if table_name not in self._tables.keys():
+            self._tables[table_name] = QuestionnaireFormTable
 
-        return self.tables[table_name]
+        return self._tables[table_name]
