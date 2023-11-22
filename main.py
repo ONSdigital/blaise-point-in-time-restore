@@ -5,7 +5,7 @@ from functions.factories.table_factory import TableFactory
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_connection_service import DatabaseConnectionService
 from services.database_orm_service import DatabaseOrmService
-from services.database_orm_service2 import DatabaseOrmService2
+from services.database_orm_service import DatabaseOrmService2
 from services.database_service import DatabaseService
 
 connection_model_source = DatabaseConnectionModel(

@@ -1,25 +1,21 @@
-from sqlalchemy import Table
-from sqlalchemy.orm import Session
+
+from services.database_service import DatabaseService
 
 
 class DatabaseOrmService:
-    def get_case_ids(self, table: Table, source_database_session: Session) -> [int]:
-        print("start")
-        case_id_list = []
-        table_rows = source_database_session.query(table).all()
-        for table_row in table_rows:
-            case_id_list.append(table_row.Serial_Number)
-            print(table_row.Serial_Number)
+    def __init__(self, source_database: DatabaseService, destination_database: DatabaseService):
+        self._source_database = source_database
+        self._destination_database = destination_database
 
-        return case_id_list
+    def copies_table_data(self, table_name: str) -> None:
+        with self._source_database.session.begin():
+            table_rows = self._source_database.get_records(table_name)
 
-    def copies_table_data(self, table: Table, source_database_session: Session, destination_database_session: Session) -> None:
-        with source_database_session.begin():
-            table_rows = source_database_session.query(table).all()
-
-            with destination_database_session.begin():
+            with self._destination_database.session.begin():
                 for table_row in table_rows:
-                    destination_database_session.merge(table_row)
+                    self._destination_database.add_record(table_row)
+
+
 
 
 

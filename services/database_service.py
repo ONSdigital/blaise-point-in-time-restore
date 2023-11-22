@@ -14,14 +14,15 @@ class DatabaseService:
         return self._database_session
 
     def get_records(self, table_name: str) -> [Table]:
-        print("Real service: get_records")
         table = self._table_factory.create_form_table_model(table_name)
-        return self._database_session.query(table).all()
+        records = self._database_session.query(table).all()
+        print(F'service: get_records {records}')
+        return records
 
     def add_record(self, record: Table):
-        print("Real service: add_record")
+        print("service: add_record")
         self._database_session.merge(record)
 
     def delete_records(self):
-        print("Real service: delete_records")
+        print("service: delete_records")
         pass
