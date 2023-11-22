@@ -11,8 +11,14 @@ class TableFactory:
 
     def __init__(self):
         self._tables: dict[str, Table] = {}
+    def get_table_models(self, questionnaire_name: str) -> [Table]:
 
-    def get_form_table_model(self, table_name: str):
+        self.create_form_table_model(F'{questionnaire_name}_Form')
+        self.create_dml_table_model(F'{questionnaire_name}_Dml')
+
+        return list(self._tables.values())
+
+    def create_form_table_model(self, table_name: str):
 
         class QuestionnaireFormTable(Base):
             __tablename__ = table_name
@@ -32,4 +38,14 @@ class TableFactory:
         if table_name not in self._tables.keys():
             self._tables[table_name] = QuestionnaireFormTable
 
-        return self._tables[table_name]
+    def create_dml_table_model(self, table_name: str):
+
+        class QuestionnaireDMLTable(Base):
+            __tablename__ = table_name
+            __table_args__ = {'extend_existing': True}
+            GUID: Mapped[str] = mapped_column(String(40), primary_key=True)
+            Serial_Number: Mapped[int] = mapped_column(BIGINT())
+
+
+        if table_name not in self._tables.keys():
+            self._tables[table_name] = QuestionnaireDMLTable

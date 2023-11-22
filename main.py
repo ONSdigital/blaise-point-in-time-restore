@@ -5,6 +5,7 @@ from functions.factories.table_factory import TableFactory
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_connection_service import DatabaseConnectionService
 from services.database_orm_service import DatabaseOrmService
+from services.database_restore_service import DatabaseRestoreService
 from services.database_service import DatabaseService
 
 connection_model_source = DatabaseConnectionModel(
@@ -30,12 +31,18 @@ table_factory = TableFactory()
 
 source_database = DatabaseConnectionService(connection_model_source).get_database()
 source_session = Session(source_database)
-source_database_service = DatabaseService(source_session, table_factory)
+source_database_service = DatabaseService(source_session)
 
 destination_database = DatabaseConnectionService(connection_model_destination).get_database()
 destination_session = Session(destination_database)
-destination_database_service = DatabaseService(destination_session, table_factory)
+destination_database_service = DatabaseService(destination_session)
 
 databaseOrmService = DatabaseOrmService(source_database_service, destination_database_service)
 
-databaseOrmService.copy_table_data("LMS2310_GP1_Form")
+databaseRestoreService = DatabaseRestoreService(table_factory, databaseOrmService)
+
+databaseRestoreService.restore_data_for_questionnaire('LMS2310_GP1')
+
+# table_models = table_factory.get_table_models('LMS2310_GP1')
+
+# databaseOrmService.copy_table_data(table_models[0])
