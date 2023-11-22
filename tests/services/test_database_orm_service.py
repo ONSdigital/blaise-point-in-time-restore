@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, Mock
 
 import pytest
 from sqlalchemy.testing.schema import Table
@@ -58,3 +58,42 @@ class TestOrmFunctionality:
 
         # assert
         mock_destination_session.merge.assert_has_calls(expected_destination_database_calls)
+
+    def test_copy_table_data_removes_any_existing_data_from_the_destination_database_before_copying(self,
+                                                                                                    service_under_test,
+                                                                                                    mock_source_session,
+                                                                                                    mock_destination_session,
+                                                                                                    mock_source_records):
+        # arrange
+        mock_source_session.query().all.return_value = mock_source_records
+
+        # set up a mock parent so that we can inspect the order of calls made
+        mock_order = MagicMock()
+        mock_order.attach_mock(mock_destination_session.query().delete, "delete")
+        mock_order.attach_mock(mock_destination_session.merge, "merge")
+
+        expected_destination_database_calls = []
+        expected_destination_database_calls.append(call.delete)
+        for record in mock_source_records:
+            expected_destination_database_calls.append(call.merge(record))
+
+        # act
+        service_under_test.copies_table_data(self.table_name)
+
+        # assert
+        mock_order.assert_has_calls(expected_destination_database_calls, any_order=False)
+
+    def test_copy_table_data_calls_begin_method_on_destination_database_session_to_ensure_transaction(self,
+                                                                                                      service_under_test,
+                                                                                                      mock_source_session,
+                                                                                                      mock_destination_session,
+                                                                                                      mock_source_records):
+        # arrange
+        mock_source_session.query().all.return_value = mock_source_records
+
+        # act
+        service_under_test.copies_table_data(self.table_name)
+
+        # assert
+        assert mock_destination_session.begin.called
+        assert not mock_destination_session.rollback.called

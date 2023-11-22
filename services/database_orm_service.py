@@ -12,6 +12,7 @@ class DatabaseOrmService:
             table_rows = self._source_database.get_records(table_name)
 
             with self._destination_database.session.begin():
+                self._destination_database.delete_records(table_name)
                 for table_row in table_rows:
                     self._destination_database.add_record(table_row)
 

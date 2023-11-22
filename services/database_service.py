@@ -5,9 +5,9 @@ from functions.factories.table_factory import TableFactory
 
 
 class DatabaseService:
-    def __init__(self, source_database_session: Session, table_factory: TableFactory):
+    def __init__(self, database_session: Session, table_factory: TableFactory):
+        self._database_session = database_session
         self._table_factory = table_factory
-        self._database_session = source_database_session
 
     @property
     def session(self) -> Session:
@@ -15,14 +15,11 @@ class DatabaseService:
 
     def get_records(self, table_name: str) -> [Table]:
         table = self._table_factory.create_form_table_model(table_name)
-        records = self._database_session.query(table).all()
-        print(F'service: get_records {records}')
-        return records
+        return self._database_session.query(table).all()
 
     def add_record(self, record: Table):
-        print("service: add_record")
         self._database_session.merge(record)
 
-    def delete_records(self):
-        print("service: delete_records")
-        pass
+    def delete_records(self, table_name: str):
+        table = self._table_factory.create_form_table_model(table_name)
+        return self._database_session.query(table).delete()
