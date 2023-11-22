@@ -5,7 +5,6 @@ from functions.factories.table_factory import TableFactory
 from models.database_connection_model import DatabaseConnectionModel
 from services.database_connection_service import DatabaseConnectionService
 from services.database_orm_service import DatabaseOrmService
-from services.database_orm_service import DatabaseOrmService2
 from services.database_service import DatabaseService
 
 connection_model_source = DatabaseConnectionModel(
@@ -27,23 +26,16 @@ connection_model_destination = DatabaseConnectionModel(
     database_password="6Nf6nOoLPQ96ETpU",
     database_ip_connection_type=IPTypes.PUBLIC
 )
+table_factory = TableFactory()
 
 source_database = DatabaseConnectionService(connection_model_source).get_database()
-destination_database = DatabaseConnectionService(connection_model_destination).get_database()
 source_session = Session(source_database)
+source_database_service = DatabaseService(source_session, table_factory)
+
+destination_database = DatabaseConnectionService(connection_model_destination).get_database()
 destination_session = Session(destination_database)
-databaseOrmService = DatabaseOrmService()
-source_table_model = TableFactory.create_form_table_model("LMS2310_GP1_Form")
-# destination_table_model = TableFactory.create_form_table_model("LMS2310_GP1_Form")
+destination_database_service = DatabaseService(destination_session, table_factory)
 
-# databaseOrmService.get_case_ids(source_table_model, source_session)
-# databaseOrmService.get_case_ids(source_table_model, destination_session)
+databaseOrmService = DatabaseOrmService(source_database_service, destination_database_service)
 
-# databaseOrmService.copies_table_data(source_table_model, source_session, destination_session)
-
-# source_database_table_service = DatabaseTableService(source_table_model, source_session)
-# destination_database_table_service = DatabaseTableService(source_table_model, destination_session)
-
-# databaseOrmService2 = DatabaseOrmService2()
-
-# databaseOrmService2.copies_table_data(source_database_table_service, destination_database_table_service)
+databaseOrmService.copy_table_data("LMS2310_GP1_Form")

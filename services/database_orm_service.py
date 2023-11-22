@@ -7,7 +7,7 @@ class DatabaseOrmService:
         self._source_database = source_database
         self._destination_database = destination_database
 
-    def copies_table_data(self, table_name: str) -> None:
+    def copy_table_data(self, table_name: str) -> None:
         with self._source_database.session.begin():
             table_rows = self._source_database.get_records(table_name)
 

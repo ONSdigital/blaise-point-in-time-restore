@@ -14,12 +14,12 @@ class DatabaseService:
         return self._database_session
 
     def get_records(self, table_name: str) -> [Table]:
-        table = self._table_factory.create_form_table_model(table_name)
+        table = self._table_factory.get_form_table_model(table_name)
         return self._database_session.query(table).all()
 
     def add_record(self, record: Table):
         self._database_session.merge(record)
 
     def delete_records(self, table_name: str):
-        table = self._table_factory.create_form_table_model(table_name)
+        table = self._table_factory.get_form_table_model(table_name)
         return self._database_session.query(table).delete()

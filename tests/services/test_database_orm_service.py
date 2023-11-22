@@ -33,7 +33,7 @@ class TestOrmFunctionality:
 
     @pytest.fixture()
     def mock_source_records(self) -> [Table]:
-        table = TableFactory.create_form_table_model(self.table_name)
+        table = TableFactory().get_form_table_model(self.table_name)
 
         records = [table(FormID=1, Serial_Number=900001),
                    table(FormID=2, Serial_Number=900002),
@@ -54,7 +54,7 @@ class TestOrmFunctionality:
             expected_destination_database_calls.append(call(record))
 
         # act
-        service_under_test.copies_table_data(self.table_name)
+        service_under_test.copy_table_data(self.table_name)
 
         # assert
         mock_destination_session.merge.assert_has_calls(expected_destination_database_calls)
@@ -72,13 +72,12 @@ class TestOrmFunctionality:
         mock_order.attach_mock(mock_destination_session.query().delete, "delete")
         mock_order.attach_mock(mock_destination_session.merge, "merge")
 
-        expected_destination_database_calls = []
-        expected_destination_database_calls.append(call.delete)
+        expected_destination_database_calls = [call.delete]
         for record in mock_source_records:
             expected_destination_database_calls.append(call.merge(record))
 
         # act
-        service_under_test.copies_table_data(self.table_name)
+        service_under_test.copy_table_data(self.table_name)
 
         # assert
         mock_order.assert_has_calls(expected_destination_database_calls, any_order=False)
@@ -92,7 +91,7 @@ class TestOrmFunctionality:
         mock_source_session.query().all.return_value = mock_source_records
 
         # act
-        service_under_test.copies_table_data(self.table_name)
+        service_under_test.copy_table_data(self.table_name)
 
         # assert
         assert mock_destination_session.begin.called
