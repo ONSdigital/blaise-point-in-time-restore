@@ -13,15 +13,16 @@ class TestDatabaseService:
         return TableFactory()
 
     @pytest.fixture
-    def mock_session(self) -> Session:
+    def mock_session(self) -> MagicMock:
         return MagicMock()
 
     @pytest.fixture
     def service_under_test(self, table_factory: TableFactory, mock_session: Session) -> DatabaseService:
         return DatabaseService(mock_session)
 
-    def test_database_service_get_records_calls_correct_method_in_session(self, service_under_test: DatabaseService,
-                                                                          mock_session: Session,
+    def test_database_service_get_records_calls_correct_method_in_session(self,
+                                                                          service_under_test: DatabaseService,
+                                                                          mock_session: Mock,
                                                                           table_factory: TableFactory):
         # Arrange
         questionnaire_name = 'LMS2211_FML'
@@ -34,10 +35,10 @@ class TestDatabaseService:
         # Assert
         mock_session.assert_has_calls([call.query(table), call.query().all()])
 
-
-    def test_database_service_add_record_calls_correct_method_in_session(self, service_under_test: DatabaseService,
-                                                                          mock_session: Session,
-                                                                          table_factory: TableFactory):
+    def test_database_service_add_record_calls_correct_method_in_session(self,
+                                                                         service_under_test: DatabaseService,
+                                                                         mock_session: MagicMock,
+                                                                         table_factory: TableFactory):
         # Arrange
         questionnaire_name = 'LMS2211_FML'
         questionnaire_tables = table_factory.get_table_models(questionnaire_name)
@@ -49,11 +50,10 @@ class TestDatabaseService:
         # Assert
         mock_session.assert_has_calls([call.merge(table)])
 
-
-
-    def test_database_service_delete_records_calls_correct_method_in_session(self, service_under_test: DatabaseService,
-                                                                          mock_session: Session,
-                                                                          table_factory: TableFactory):
+    def test_database_service_delete_records_calls_correct_method_in_session(self,
+                                                                             service_under_test: DatabaseService,
+                                                                             mock_session: MagicMock,
+                                                                             table_factory: TableFactory):
         # Arrange
         questionnaire_name = 'LMS2211_FML'
         questionnaire_tables = table_factory.get_table_models(questionnaire_name)

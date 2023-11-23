@@ -14,7 +14,7 @@ class TestDatabaseRestoreService:
         return TableFactory()
 
     @pytest.fixture
-    def mock_database_orm_service(self) -> DatabaseOrmService:
+    def mock_database_orm_service(self) -> MagicMock:
         return MagicMock()
 
     @pytest.fixture
