@@ -2,6 +2,7 @@ import atexit
 import logging
 import time
 import uuid
+from functools import cache
 
 import flask
 import google.cloud.logging
@@ -17,37 +18,45 @@ from services.pitr_orchestrator_service import (
     build_clone_instance_name,
 )
 
-try:
-    _logging_client = google.cloud.logging.Client(project=Settings.DEST_PROJECT_ID)
-    _logging_client.setup_logging()
-    atexit.register(_logging_client.close)
-except Exception:
-    logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-authorisation_service = AuthorisationService()
-clone_service = DatabaseCloneService(
-    authorisation_service=authorisation_service,
-    project_id=Settings.DEST_PROJECT_ID,
-    http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
-    http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
-)
-database_service = DatabaseService(
-    authorisation_service=authorisation_service,
-    project_id=Settings.DEST_PROJECT_ID,
-    database_name=Settings.DEST_DB_NAME,
-    export_bucket_name=Settings.RESTORE_GCS_BUCKET,
-    export_prefix=Settings.RESTORE_GCS_PREFIX,
-    operation_timeout_seconds=Settings.CLONE_OPERATION_TIMEOUT_SECONDS,
-    operation_poll_seconds=Settings.CLONE_OPERATION_POLL_SECONDS,
-    http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
-    http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
-)
-database_restore_service = DatabaseRestoreService(database_service)
-orchestrator = PitrOrchestratorService(
-    clone_service=clone_service,
-    restore_service=database_restore_service,
-)
+@cache
+def _setup_cloud_logging() -> None:
+    try:
+        logging_client = google.cloud.logging.Client(project=Settings.DEST_PROJECT_ID)
+        logging_client.setup_logging()
+        atexit.register(logging_client.close)
+    except Exception:
+        LOGGER.exception("Cloud Logging setup failed; using standard logging")
+
+
+@cache
+def _get_orchestrator() -> PitrOrchestratorService:
+    _setup_cloud_logging()
+    authorisation_service = AuthorisationService()
+    clone_service = DatabaseCloneService(
+        authorisation_service=authorisation_service,
+        project_id=Settings.DEST_PROJECT_ID,
+        http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
+        http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
+    )
+    database_service = DatabaseService(
+        authorisation_service=authorisation_service,
+        project_id=Settings.DEST_PROJECT_ID,
+        database_name=Settings.DEST_DB_NAME,
+        export_bucket_name=Settings.RESTORE_GCS_BUCKET,
+        export_prefix=Settings.RESTORE_GCS_PREFIX,
+        operation_timeout_seconds=Settings.CLONE_OPERATION_TIMEOUT_SECONDS,
+        operation_poll_seconds=Settings.CLONE_OPERATION_POLL_SECONDS,
+        http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
+        http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
+    )
+    database_restore_service = DatabaseRestoreService(database_service)
+    return PitrOrchestratorService(
+        clone_service=clone_service,
+        restore_service=database_restore_service,
+    )
 
 
 def run_restore(
@@ -87,7 +96,7 @@ def run_restore(
         clone_instance_name,
     )
 
-    orchestrator.restore_questionnaire_from_point_in_time(restore_request)
+    _get_orchestrator().restore_questionnaire_from_point_in_time(restore_request)
     LOGGER.info(
         (
             "Restore request finished; request_id=%s "
@@ -120,7 +129,9 @@ def _json_error(
     return flask.jsonify(body), status
 
 
-def restore_point_in_time_questionnaire(request: flask.Request) -> tuple[flask.Response | str, int]:
+def restore_point_in_time_questionnaire(
+    request: flask.Request,
+) -> tuple[flask.Response | str, int]:
     """Cloud Function HTTP entry point."""
     request_id = str(uuid.uuid4())
     data = request.get_json(silent=True) or {}

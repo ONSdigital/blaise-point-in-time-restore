@@ -506,19 +506,37 @@ def test_discover_restore_bucket_name_exits_for_unexpected_instance_name() -> No
 
 
 def test_settings_class_is_initialized_with_discovered_values() -> None:
-    config_module = _load_config_module_with_safe_defaults()
-    settings = config_module.Settings
+    config_module = _load_config_module()
 
-    assert settings.DEST_PROJECT_ID == "project-1"
-    assert settings.DEST_INSTANCE_NAME == "project-1:region:blaise-dev-abc12345"
-    assert settings.RESTORE_SOURCE_INSTANCE_NAME == settings.DEST_INSTANCE_NAME
-    assert settings.DEST_DB_NAME == "blaise"
-    assert settings.RESTORE_GCS_BUCKET == "ons-blaise-v2-dev-backups"
-    assert settings.RESTORE_GCS_PREFIX == "questionnaire-pitr"
-    assert settings.CLONE_NAME_PREFIX == "pitr"
-    assert settings.CLONE_OPERATION_POLL_SECONDS == _EXPECTED_POLL_SECONDS
-    assert settings.CLONE_OPERATION_TIMEOUT_SECONDS == _EXPECTED_TIMEOUT_SECONDS
-    assert (
-        settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS == _EXPECTED_CONNECT_TIMEOUT_SECONDS
-    )
-    assert settings.CLONE_HTTP_READ_TIMEOUT_SECONDS == _EXPECTED_READ_TIMEOUT_SECONDS
+    with (
+        patch.object(config_module, "discover_project_id", return_value="project-1"),
+        patch.object(
+            config_module,
+            "discover_destination_instance_name",
+            return_value="project-1:region:blaise-dev-abc12345",
+        ),
+        patch.object(config_module, "discover_database_name", return_value="blaise"),
+        patch.object(
+            config_module,
+            "discover_restore_bucket_name",
+            return_value="ons-blaise-v2-dev-backups",
+        ),
+    ):
+        settings = config_module.Settings
+
+        assert settings.DEST_PROJECT_ID == "project-1"
+        assert settings.DEST_INSTANCE_NAME == "project-1:region:blaise-dev-abc12345"
+        assert settings.RESTORE_SOURCE_INSTANCE_NAME == settings.DEST_INSTANCE_NAME
+        assert settings.DEST_DB_NAME == "blaise"
+        assert settings.RESTORE_GCS_BUCKET == "ons-blaise-v2-dev-backups"
+        assert settings.RESTORE_GCS_PREFIX == "questionnaire-pitr"
+        assert settings.CLONE_NAME_PREFIX == "pitr"
+        assert settings.CLONE_OPERATION_POLL_SECONDS == _EXPECTED_POLL_SECONDS
+        assert settings.CLONE_OPERATION_TIMEOUT_SECONDS == _EXPECTED_TIMEOUT_SECONDS
+        assert (
+            settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS
+            == _EXPECTED_CONNECT_TIMEOUT_SECONDS
+        )
+        assert (
+            settings.CLONE_HTTP_READ_TIMEOUT_SECONDS == _EXPECTED_READ_TIMEOUT_SECONDS
+        )

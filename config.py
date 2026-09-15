@@ -336,12 +336,49 @@ def discover_restore_bucket_name(instance_connection_name: str) -> str:
     return f"ons-blaise-v2-{environment_name}-backups"
 
 
-class Settings:
-    DEST_PROJECT_ID = discover_project_id()
-    DEST_INSTANCE_NAME = discover_destination_instance_name(DEST_PROJECT_ID)
-    RESTORE_SOURCE_INSTANCE_NAME = DEST_INSTANCE_NAME
-    DEST_DB_NAME = discover_database_name(DEST_PROJECT_ID, DEST_INSTANCE_NAME)
-    RESTORE_GCS_BUCKET = discover_restore_bucket_name(DEST_INSTANCE_NAME)
+class _SettingsMeta(type):
+    _dest_project_id: str | None = None
+    _dest_instance_name: str | None = None
+    _dest_db_name: str | None = None
+    _restore_gcs_bucket: str | None = None
+
+    @property
+    def DEST_PROJECT_ID(cls) -> str:
+        if cls._dest_project_id is None:
+            cls._dest_project_id = discover_project_id()
+        return cls._dest_project_id
+
+    @property
+    def DEST_INSTANCE_NAME(cls) -> str:
+        if cls._dest_instance_name is None:
+            cls._dest_instance_name = discover_destination_instance_name(
+                cls.DEST_PROJECT_ID
+            )
+        return cls._dest_instance_name
+
+    @property
+    def RESTORE_SOURCE_INSTANCE_NAME(cls) -> str:
+        return cls.DEST_INSTANCE_NAME
+
+    @property
+    def DEST_DB_NAME(cls) -> str:
+        if cls._dest_db_name is None:
+            cls._dest_db_name = discover_database_name(
+                cls.DEST_PROJECT_ID,
+                cls.DEST_INSTANCE_NAME,
+            )
+        return cls._dest_db_name
+
+    @property
+    def RESTORE_GCS_BUCKET(cls) -> str:
+        if cls._restore_gcs_bucket is None:
+            cls._restore_gcs_bucket = discover_restore_bucket_name(
+                cls.DEST_INSTANCE_NAME
+            )
+        return cls._restore_gcs_bucket
+
+
+class Settings(metaclass=_SettingsMeta):
     RESTORE_GCS_PREFIX = "questionnaire-pitr"
 
     CLONE_NAME_PREFIX = "pitr"

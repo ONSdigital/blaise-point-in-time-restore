@@ -94,6 +94,7 @@ def test_json_error_omits_optional_fields_when_not_provided() -> None:
 def test_run_restore_builds_request_and_calls_orchestrator() -> None:
     main_module = _load_main_module()
     parsed_ts = datetime(2026, 7, 8, 14, 30, 0, tzinfo=UTC)
+    mock_orchestrator = Mock()
 
     with (
         patch.object(main_module, "parse_uk_local_timestamp", return_value=parsed_ts),
@@ -101,12 +102,14 @@ def test_run_restore_builds_request_and_calls_orchestrator() -> None:
             main_module, "build_clone_instance_name", return_value="clone-name"
         ),
         patch.object(
-            main_module.orchestrator, "restore_questionnaire_from_point_in_time"
-        ) as mock_restore,
+            main_module, "_get_orchestrator", return_value=mock_orchestrator
+        ),
     ):
         main_module.run_restore("LMS2601_KX2", "2026-07-08 14:30:00")
 
-    request = mock_restore.call_args.args[0]
+    request = mock_orchestrator.restore_questionnaire_from_point_in_time.call_args.args[
+        0
+    ]
     assert request.questionnaire_name == "LMS2601_KX2"
     assert request.timestamp == parsed_ts
     assert request.source_instance_name == FakeSettings.RESTORE_SOURCE_INSTANCE_NAME
@@ -124,14 +127,16 @@ def test_restore_point_in_time_questionnaire_returns_400_for_missing_fields() ->
     app = flask.Flask(__name__)
 
     with app.test_request_context(json={}):
-        response, status = main_module.restore_point_in_time_questionnaire(flask.request)
+        response, status = main_module.restore_point_in_time_questionnaire(
+            flask.request
+        )
         payload = response.get_json()
 
     assert status == http.HTTPStatus.BAD_REQUEST
     assert payload["error"]["code"] == "missing_parameters"
 
 
-def test_restore_point_in_time_questionnaire_returns_400_for_invalid_timestamp() -> None:
+def test_restore_point_in_time_questionnaire_returns_400_for_bad_timestamp() -> None:
     main_module = _load_main_module()
     app = flask.Flask(__name__)
 
@@ -144,7 +149,9 @@ def test_restore_point_in_time_questionnaire_returns_400_for_invalid_timestamp()
         ),
         patch("main.uuid.uuid4", return_value="request-id-1"),
     ):
-        response, status = main_module.restore_point_in_time_questionnaire(flask.request)
+        response, status = main_module.restore_point_in_time_questionnaire(
+            flask.request
+        )
         payload = response.get_json()
 
     assert status == http.HTTPStatus.BAD_REQUEST
@@ -166,7 +173,9 @@ def test_restore_point_in_time_questionnaire_returns_500_for_unexpected_error() 
         patch.object(main_module, "run_restore", side_effect=RuntimeError("boom")),
         patch("main.uuid.uuid4", return_value="request-id-2"),
     ):
-        response, status = main_module.restore_point_in_time_questionnaire(flask.request)
+        response, status = main_module.restore_point_in_time_questionnaire(
+            flask.request
+        )
         payload = response.get_json()
 
     assert status == http.HTTPStatus.INTERNAL_SERVER_ERROR
