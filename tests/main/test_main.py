@@ -119,19 +119,19 @@ def test_run_restore_builds_request_and_calls_orchestrator() -> None:
     assert request.operation_poll_seconds == FakeSettings.CLONE_OPERATION_POLL_SECONDS
 
 
-def test_restore_questionnaire_returns_400_for_missing_fields() -> None:
+def test_restore_point_in_time_questionnaire_returns_400_for_missing_fields() -> None:
     main_module = _load_main_module()
     app = flask.Flask(__name__)
 
     with app.test_request_context(json={}):
-        response, status = main_module.restore_questionnaire(flask.request)
+        response, status = main_module.restore_point_in_time_questionnaire(flask.request)
         payload = response.get_json()
 
     assert status == http.HTTPStatus.BAD_REQUEST
     assert payload["error"]["code"] == "missing_parameters"
 
 
-def test_restore_questionnaire_returns_400_for_invalid_timestamp() -> None:
+def test_restore_point_in_time_questionnaire_returns_400_for_invalid_timestamp() -> None:
     main_module = _load_main_module()
     app = flask.Flask(__name__)
 
@@ -144,7 +144,7 @@ def test_restore_questionnaire_returns_400_for_invalid_timestamp() -> None:
         ),
         patch("main.uuid.uuid4", return_value="request-id-1"),
     ):
-        response, status = main_module.restore_questionnaire(flask.request)
+        response, status = main_module.restore_point_in_time_questionnaire(flask.request)
         payload = response.get_json()
 
     assert status == http.HTTPStatus.BAD_REQUEST
@@ -152,7 +152,7 @@ def test_restore_questionnaire_returns_400_for_invalid_timestamp() -> None:
     assert payload["error"]["request_id"] == "request-id-1"
 
 
-def test_restore_questionnaire_returns_500_for_unexpected_error() -> None:
+def test_restore_point_in_time_questionnaire_returns_500_for_unexpected_error() -> None:
     main_module = _load_main_module()
     app = flask.Flask(__name__)
 
@@ -166,7 +166,7 @@ def test_restore_questionnaire_returns_500_for_unexpected_error() -> None:
         patch.object(main_module, "run_restore", side_effect=RuntimeError("boom")),
         patch("main.uuid.uuid4", return_value="request-id-2"),
     ):
-        response, status = main_module.restore_questionnaire(flask.request)
+        response, status = main_module.restore_point_in_time_questionnaire(flask.request)
         payload = response.get_json()
 
     assert status == http.HTTPStatus.INTERNAL_SERVER_ERROR
@@ -174,7 +174,7 @@ def test_restore_questionnaire_returns_500_for_unexpected_error() -> None:
     assert payload["error"]["request_id"] == "request-id-2"
 
 
-def test_restore_questionnaire_returns_200_on_success() -> None:
+def test_restore_point_in_time_questionnaire_returns_200_on_success() -> None:
     main_module = _load_main_module()
     app = flask.Flask(__name__)
 
@@ -187,7 +187,7 @@ def test_restore_questionnaire_returns_200_on_success() -> None:
         ),
         patch.object(main_module, "run_restore", return_value=None),
     ):
-        body, status = main_module.restore_questionnaire(flask.request)
+        body, status = main_module.restore_point_in_time_questionnaire(flask.request)
 
     assert status == http.HTTPStatus.OK
     assert body == "OK"
