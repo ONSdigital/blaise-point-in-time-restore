@@ -7,7 +7,7 @@ The Cloud Function is intended to be packaged and deployed by Terraform maintain
 ## Function Contract
 
 - Runtime: Python 3.13
-- Entry point: `restore_questionnaire`
+- Entry point: `restore_point_in_time_questionnaire`
 - Trigger: HTTP
 - Request content type: `application/json`
 - Maximum execution time: 3600 seconds
@@ -50,7 +50,7 @@ The infrastructure must provide:
 - Cloud Storage access to the environment backup bucket for the runtime service account and the Cloud SQL instance service account.
 - Cloud Run Invoker permission for operators who invoke the second-generation function.
 
-The function uses Application Default Credentials from its runtime service account. It discovers the GCP project, the Blaise Cloud SQL instance, the database, and the backup bucket at startup.
+The function uses Application Default Credentials from its runtime service account. It discovers the GCP project, the Blaise Cloud SQL instance, the database, and the backup bucket when handling restore work, after the Functions Framework has started.
 
 ## Runtime Configuration
 
