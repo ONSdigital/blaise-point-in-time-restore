@@ -120,7 +120,7 @@ def _json_error(
     return flask.jsonify(body), status
 
 
-def restore_questionnaire(request: flask.Request) -> tuple[flask.Response | str, int]:
+def restore_point_in_time_questionnaire(request: flask.Request) -> tuple[flask.Response | str, int]:
     """Cloud Function HTTP entry point."""
     request_id = str(uuid.uuid4())
     data = request.get_json(silent=True) or {}
