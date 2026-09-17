@@ -14,7 +14,7 @@ def _fake_parse_timestamp(_value: str) -> datetime:
 
 
 class FakeSettings:
-    DEST_PROJECT_ID = "project-1"
+    PROJECT_ID = "project-1"
     DEST_INSTANCE_NAME = "project-1:region:dest"
     RESTORE_SOURCE_INSTANCE_NAME = "project-1:region:source"
     DEST_DB_NAME = "blaise"

@@ -1,4 +1,3 @@
-import subprocess
 from typing import cast
 
 import google.auth
@@ -16,9 +15,18 @@ class AuthorisationService:
     def get_credentials_token(self) -> str:
         try:
             self._credentials.refresh(Request())
-            return cast(str, self._credentials.token)
-        except Exception:
-            return self.__token_via_gcloud()
+        except Exception as error:
+            raise RuntimeError(
+                "Could not refresh Application Default Credentials. Ensure the "
+                "Cloud Function has a runtime service account."
+            ) from error
+
+        token = self._credentials.token
+        if not token:
+            raise RuntimeError(
+                "Application Default Credentials returned an empty access token"
+            )
+        return cast(str, token)
 
     @staticmethod
     def __ensure_scoped_credentials(credentials: Credentials) -> Credentials:
@@ -28,13 +36,3 @@ class AuthorisationService:
                 return cast(Credentials, with_scopes([_CLOUD_PLATFORM_SCOPE]))
 
         return credentials
-
-    @staticmethod
-    def __token_via_gcloud() -> str:
-        result = subprocess.run(
-            ["gcloud", "auth", "print-access-token"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return result.stdout.strip()

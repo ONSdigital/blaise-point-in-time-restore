@@ -46,25 +46,40 @@ The infrastructure must provide:
 - A VPC connector with access to the Cloud SQL instance.
 - A timeout that accommodates the restore operation; 3600 seconds is recommended.
 - Authentication on the HTTP endpoint. Do not allow unauthenticated invocation.
-- Cloud SQL Admin, Secret Manager Secret Accessor, and Logs Writer permissions for the runtime service account.
+- Cloud SQL Admin and Logs Writer permissions for the runtime service account.
 - Cloud Storage access to the environment backup bucket for the runtime service account and the Cloud SQL instance service account.
 - Cloud Run Invoker permission for operators who invoke the second-generation function.
 
-The function uses Application Default Credentials from its runtime service account. It discovers the GCP project, the Blaise Cloud SQL instance, the database, and the backup bucket when handling restore work, after the Functions Framework has started.
+The function uses Application Default Credentials from its runtime service account. Terraform must attach that service account to the function and provide the resource identifiers below as runtime environment variables. Do not pass access tokens, service-account keys, or other credentials through environment variables.
 
 ## Runtime Configuration
 
-No runtime environment variables are required.
+The following runtime environment variables are required:
 
-The function discovers:
+| Variable | Value |
+| --- | --- |
+| `PROJECT_ID` | GCP project ID containing the Cloud SQL instance. |
+| `DEST_INSTANCE_NAME` | Cloud SQL instance name or connection name (`project:region:instance`). |
+| `DEST_DB_NAME` | Destination database name, normally `blaise`. |
+| `RESTORE_GCS_BUCKET` | Backup bucket name without the `gs://` prefix. |
 
-- The current project from Application Default Credentials.
-- The destination Cloud SQL instance matching `blaise-<environment>-<id>`.
-- The `blaise` database, or the only non-system database when there is one.
-- The backup bucket as `ons-blaise-v2-<environment>-backups`.
-- The source instance, which is the same as the destination instance before cloning.
+The point-in-time restore source is the destination instance itself, so no separate source-instance variable is required. Authentication is provided by the function's attached runtime service account through Application Default Credentials.
 
-The Cloud SQL password is read from the latest version of the `cloudsql_pw` Secret Manager secret.
+Example Terraform configuration for a second-generation function:
+
+```hcl
+service_config {
+  service_account_email = google_service_account.pitr.email
+  timeout_seconds       = 3600
+
+  environment_variables = {
+    PROJECT_ID      = var.project_id
+    DEST_INSTANCE_NAME   = google_sql_database_instance.blaise.connection_name
+    DEST_DB_NAME         = google_sql_database.blaise.name
+    RESTORE_GCS_BUCKET   = google_storage_bucket.backups.name
+  }
+}
+```
 
 ## Invoke From GCP Console
 
@@ -87,7 +102,7 @@ The restore runs synchronously. Keep the Console request open until the function
 ## Restore Flow
 
 1. Validate and parse the request.
-2. Discover the source and destination Cloud SQL configuration.
+2. Read the source and destination Cloud SQL configuration supplied by Terraform.
 3. Create a point-in-time clone.
 4. Export `<QUESTIONNAIRE>_Dml` from the clone to Cloud Storage and import it into the destination.
 5. Export `<QUESTIONNAIRE>_Form` from the clone to Cloud Storage and import it into the destination.

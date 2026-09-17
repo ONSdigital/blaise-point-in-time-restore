@@ -24,7 +24,7 @@ LOGGER = logging.getLogger(__name__)
 @cache
 def _setup_cloud_logging() -> None:
     try:
-        logging_client = google.cloud.logging.Client(project=Settings.DEST_PROJECT_ID)
+        logging_client = google.cloud.logging.Client(project=Settings.PROJECT_ID)
         logging_client.setup_logging()
         atexit.register(logging_client.close)
     except Exception:
@@ -37,13 +37,13 @@ def _get_orchestrator() -> PitrOrchestratorService:
     authorisation_service = AuthorisationService()
     clone_service = DatabaseCloneService(
         authorisation_service=authorisation_service,
-        project_id=Settings.DEST_PROJECT_ID,
+        project_id=Settings.PROJECT_ID,
         http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
         http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
     )
     database_service = DatabaseService(
         authorisation_service=authorisation_service,
-        project_id=Settings.DEST_PROJECT_ID,
+        project_id=Settings.PROJECT_ID,
         database_name=Settings.DEST_DB_NAME,
         export_bucket_name=Settings.RESTORE_GCS_BUCKET,
         export_prefix=Settings.RESTORE_GCS_PREFIX,
