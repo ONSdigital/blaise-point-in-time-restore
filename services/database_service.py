@@ -13,6 +13,8 @@ HTTP_UNAUTHORIZED = 401
 HTTP_PRECONDITION_FAILED = 412
 _EXPORT_PRECONDITION_RETRY_COUNT = 12
 _EXPORT_PRECONDITION_RETRY_DELAY_SECONDS = 5
+_TRANSIENT_RETRY_COUNT = 3
+_TRANSIENT_RETRY_DELAY_SECONDS = 20
 _STORAGE_API_URL = "https://storage.googleapis.com/storage/v1"
 
 
@@ -232,25 +234,46 @@ class DatabaseService:
         self, method: str, url: str, **kwargs: Any
     ) -> requests.Response:
         request_method = getattr(requests, method)
-        response = request_method(
-            url=url,
-            headers=self.__create_authorisation_headers(),
-            timeout=self._http_timeout,
-            **kwargs,
-        )
-        if response.status_code != HTTP_UNAUTHORIZED:
-            return response
+        for attempt in range(_TRANSIENT_RETRY_COUNT + 1):
+            try:
+                response = request_method(
+                    url=url,
+                    headers=self.__create_authorisation_headers(),
+                    timeout=self._http_timeout,
+                    **kwargs,
+                )
+                if response.status_code != HTTP_UNAUTHORIZED:
+                    return response
 
-        LOGGER.warning(
-            "Unauthorized response from SQL Admin API; retrying once; url=%s",
-            url,
-        )
-        return request_method(
-            url=url,
-            headers=self.__create_authorisation_headers(),
-            timeout=self._http_timeout,
-            **kwargs,
-        )
+                LOGGER.warning(
+                    "Unauthorized response from SQL Admin API; retrying once; url=%s",
+                    url,
+                )
+                return request_method(
+                    url=url,
+                    headers=self.__create_authorisation_headers(),
+                    timeout=self._http_timeout,
+                    **kwargs,
+                )
+            except (requests.ConnectionError, requests.Timeout) as error:
+                if attempt == _TRANSIENT_RETRY_COUNT:
+                    raise
+
+                LOGGER.warning(
+                    (
+                        "Transient SQL Admin API request failure; retrying in %s "
+                        "seconds; url=%s retry=%s/%s error_type=%s error=%s"
+                    ),
+                    _TRANSIENT_RETRY_DELAY_SECONDS,
+                    url,
+                    attempt + 1,
+                    _TRANSIENT_RETRY_COUNT,
+                    type(error).__name__,
+                    error,
+                )
+                time.sleep(_TRANSIENT_RETRY_DELAY_SECONDS)
+
+        raise RuntimeError("SQL Admin API request retry loop exited unexpectedly")
 
     @staticmethod
     def __raise_for_status_with_details(

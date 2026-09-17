@@ -94,6 +94,12 @@ class PitrOrchestratorService:
         clone_connection_name = str(
             clone_instance.get("connectionName", clone_instance_name)
         )
+        clone_settings = clone_instance.get("settings", {})
+        if isinstance(clone_settings, dict) and clone_settings.get(
+            "deletionProtectionEnabled"
+        ):
+            self.__prepare_clone_for_cleanup(request, clone_instance_name)
+
         LOGGER.info(
             (
                 "Resolved clone connection for restore; request_id=%s "
@@ -154,6 +160,40 @@ class PitrOrchestratorService:
             request.questionnaire_name,
             time.monotonic() - started_at,
         )
+
+    def __prepare_clone_for_cleanup(
+        self, request: PitrRequest, clone_instance_name: str
+    ) -> None:
+        try:
+            LOGGER.info(
+                (
+                    "Disabling deletion protection on temporary clone; "
+                    "request_id=%s clone=%s"
+                ),
+                request.request_id,
+                clone_instance_name,
+            )
+            self._clone_service.disable_deletion_protection(clone_instance_name)
+            LOGGER.info(
+                (
+                    "Deletion protection disabled on temporary clone; "
+                    "request_id=%s clone=%s"
+                ),
+                request.request_id,
+                clone_instance_name,
+            )
+        except Exception as error:
+            LOGGER.warning(
+                (
+                    "Could not proactively disable deletion protection; cleanup "
+                    "will retry after restore; request_id=%s clone=%s "
+                    "error_type=%s error=%s"
+                ),
+                request.request_id,
+                clone_instance_name,
+                type(error).__name__,
+                error,
+            )
 
     def __resolve_clone_instance_name(
         self, request: PitrRequest, clone_model: DatabaseCloneModel

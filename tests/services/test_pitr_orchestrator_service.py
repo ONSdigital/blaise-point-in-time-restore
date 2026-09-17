@@ -3,6 +3,7 @@ from typing import Any, cast
 from unittest.mock import Mock, call, patch
 
 import pytest
+import requests
 
 from services.pitr_orchestrator_service import (
     PitrOrchestratorService,
@@ -75,6 +76,64 @@ def test_restore_questionnaire_from_point_in_time_happy_path(
         source_instance_name="proj:reg:clone-conn",
         destination_instance_name="proj:reg:dest",
     )
+
+
+def test_deletion_protection_is_disabled_before_restore(
+    clone_service: Mock,
+    restore_service: Mock,
+    pitr_request: PitrRequest,
+) -> None:
+    clone_service.get_instance.side_effect = [
+        {"name": "source"},
+        {"name": "destination"},
+        {
+            "connectionName": "proj:reg:clone-conn",
+            "settings": {"deletionProtectionEnabled": True},
+        },
+    ]
+    parent = Mock()
+    parent.attach_mock(clone_service.disable_deletion_protection, "disable")
+    parent.attach_mock(restore_service.restore_questionnaire_tables, "restore")
+
+    service = PitrOrchestratorService(
+        clone_service=clone_service, restore_service=restore_service
+    )
+
+    service.restore_questionnaire_from_point_in_time(pitr_request)
+
+    assert parent.mock_calls[:2] == [
+        call.disable(pitr_request.clone_instance_name),
+        call.restore(
+            "LMS2601_KX2",
+            source_instance_name="proj:reg:clone-conn",
+            destination_instance_name="proj:reg:dest",
+        ),
+    ]
+
+
+def test_restore_continues_when_proactive_protection_disable_fails(
+    clone_service: Mock,
+    restore_service: Mock,
+    pitr_request: PitrRequest,
+) -> None:
+    clone_service.get_instance.side_effect = [
+        {"name": "source"},
+        {"name": "destination"},
+        {
+            "connectionName": "proj:reg:clone-conn",
+            "settings": {"deletionProtectionEnabled": True},
+        },
+    ]
+    clone_service.disable_deletion_protection.side_effect = requests.ConnectionError(
+        "connection failed"
+    )
+    service = PitrOrchestratorService(
+        clone_service=clone_service, restore_service=restore_service
+    )
+
+    service.restore_questionnaire_from_point_in_time(pitr_request)
+
+    restore_service.restore_questionnaire_tables.assert_called_once()
 
 
 def test_existing_stale_clone_is_deleted_before_recreate(

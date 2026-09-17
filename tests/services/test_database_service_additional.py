@@ -1,12 +1,14 @@
 from typing import Any, cast
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
+import requests
 
 from services.database_service import DatabaseService
 
 _EXPECTED_POST_CALLS = 2
 _EXPECTED_RETRY_POST_CALLS = 3
+_EXPECTED_TRANSIENT_REQUEST_CALLS = 4
 
 
 def _build_service() -> DatabaseService:
@@ -208,3 +210,32 @@ def test_request_with_authorisation_retry_retries_once_on_unauthorized() -> None
 
     assert response is success_response
     assert mock_get.call_count == _EXPECTED_POST_CALLS
+
+
+def test_request_retries_three_transient_failures_before_success() -> None:
+    service = _build_service()
+    success_response = Mock()
+    success_response.status_code = 200
+
+    with (
+        patch(
+            "services.database_service.requests.get",
+            side_effect=[
+                requests.ConnectionError("connection failed"),
+                requests.Timeout("request timed out"),
+                requests.ConnectionError("TLS connection closed"),
+                success_response,
+            ],
+        ) as mock_get,
+        patch("services.database_service.time.sleep") as mock_sleep,
+    ):
+        response = cast(
+            Any, service
+        )._DatabaseService__request_with_authorisation_retry(
+            "get",
+            "https://sqladmin.googleapis.com/test",
+        )
+
+    assert response is success_response
+    assert mock_get.call_count == _EXPECTED_TRANSIENT_REQUEST_CALLS
+    assert mock_sleep.call_args_list == [call(20), call(20), call(20)]

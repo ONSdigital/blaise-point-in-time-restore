@@ -1,11 +1,14 @@
 from datetime import UTC, datetime
 from typing import Any, cast
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
+import requests
 
 from models.database_clone_model import DatabaseCloneModel
 from services.database_clone_service import DatabaseCloneService
+
+_EXPECTED_TRANSIENT_REQUEST_CALLS = 4
 
 
 @pytest.fixture
@@ -117,6 +120,29 @@ def test_delete_clone_handles_deletion_protection(
     assert operation == "op-delete"
     expected_calls = 2
     assert mock_delete.call_count == expected_calls
+    mock_wait.assert_called_once_with("op-disable-protection", timeout_seconds=300)
+
+
+def test_disable_deletion_protection_waits_for_patch_operation(
+    clone_service: DatabaseCloneService,
+) -> None:
+    patch_response = Mock()
+    patch_response.status_code = 200
+    patch_response.raise_for_status.return_value = None
+    patch_response.json.return_value = {"name": "op-disable-protection"}
+
+    with (
+        patch(
+            "services.database_clone_service.requests.patch",
+            return_value=patch_response,
+        ) as mock_patch,
+        patch.object(clone_service, "wait_for_operation") as mock_wait,
+    ):
+        clone_service.disable_deletion_protection("clone-instance")
+
+    assert mock_patch.call_args.kwargs["json"] == {
+        "settings": {"deletionProtectionEnabled": False}
+    }
     mock_wait.assert_called_once_with("op-disable-protection", timeout_seconds=300)
 
 
@@ -344,6 +370,50 @@ def test_wait_for_operation_retries_once_when_unauthorized(
     assert operation["status"] == "DONE"
     expected_get_calls = 2
     assert mock_get.call_count == expected_get_calls
+
+
+def test_wait_for_operation_retries_three_transient_connection_failures(
+    clone_service: DatabaseCloneService,
+) -> None:
+    done_response = Mock()
+    done_response.status_code = 200
+    done_response.raise_for_status.return_value = None
+    done_response.json.return_value = {"status": "DONE", "name": "op1"}
+
+    with (
+        patch(
+            "services.database_clone_service.requests.get",
+            side_effect=[
+                requests.ConnectionError("connection failed"),
+                requests.Timeout("request timed out"),
+                requests.ConnectionError("TLS connection closed"),
+                done_response,
+            ],
+        ) as mock_get,
+        patch("services.database_clone_service.time.sleep") as mock_sleep,
+    ):
+        operation = clone_service.wait_for_operation("op1", timeout_seconds=90)
+
+    assert operation["status"] == "DONE"
+    assert mock_get.call_count == _EXPECTED_TRANSIENT_REQUEST_CALLS
+    assert mock_sleep.call_args_list == [call(20), call(20), call(20)]
+
+
+def test_wait_for_operation_raises_after_three_transient_retries(
+    clone_service: DatabaseCloneService,
+) -> None:
+    with (
+        patch(
+            "services.database_clone_service.requests.get",
+            side_effect=requests.Timeout("request timed out"),
+        ) as mock_get,
+        patch("services.database_clone_service.time.sleep") as mock_sleep,
+        pytest.raises(requests.Timeout, match="request timed out"),
+    ):
+        clone_service.wait_for_operation("op1", timeout_seconds=90)
+
+    assert mock_get.call_count == _EXPECTED_TRANSIENT_REQUEST_CALLS
+    assert mock_sleep.call_args_list == [call(20), call(20), call(20)]
 
 
 def test_create_clone_request_body_normalizes_to_utc_z_suffix() -> None:

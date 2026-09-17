@@ -12,6 +12,8 @@ LOGGER = logging.getLogger(__name__)
 HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
 HTTP_UNAUTHORIZED = 401
+_TRANSIENT_RETRY_COUNT = 3
+_TRANSIENT_RETRY_DELAY_SECONDS = 20
 
 
 class DatabaseCloneService:
@@ -72,7 +74,7 @@ class DatabaseCloneService:
             LOGGER.info(
                 "Delete blocked by deletion protection; instance=%s", instance_name
             )
-            self.__disable_deletion_protection(instance_name)
+            self.disable_deletion_protection(instance_name)
             response = self.__request_with_authorisation_retry(
                 method="delete",
                 url=self.__get_instance_api_url(instance_name),
@@ -194,7 +196,7 @@ class DatabaseCloneService:
 
             time.sleep(poll_interval_seconds)
 
-    def __disable_deletion_protection(self, instance_name: str) -> None:
+    def disable_deletion_protection(self, instance_name: str) -> None:
         """Disable deletion protection, starting a STOPPED instance if required."""
         patch_body: dict[str, Any] = {"settings": {"deletionProtectionEnabled": False}}
 
@@ -247,25 +249,46 @@ class DatabaseCloneService:
         self, method: str, url: str, **kwargs: Any
     ) -> requests.Response:
         request_method = getattr(requests, method)
-        response = request_method(
-            url=url,
-            headers=self.__create_authorisation_headers(),
-            timeout=self._http_timeout,
-            **kwargs,
-        )
-        if response.status_code != HTTP_UNAUTHORIZED:
-            return response
+        for attempt in range(_TRANSIENT_RETRY_COUNT + 1):
+            try:
+                response = request_method(
+                    url=url,
+                    headers=self.__create_authorisation_headers(),
+                    timeout=self._http_timeout,
+                    **kwargs,
+                )
+                if response.status_code != HTTP_UNAUTHORIZED:
+                    return response
 
-        LOGGER.warning(
-            "Unauthorized response from SQL Admin API; retrying once; url=%s",
-            url,
-        )
-        return request_method(
-            url=url,
-            headers=self.__create_authorisation_headers(),
-            timeout=self._http_timeout,
-            **kwargs,
-        )
+                LOGGER.warning(
+                    "Unauthorized response from SQL Admin API; retrying once; url=%s",
+                    url,
+                )
+                return request_method(
+                    url=url,
+                    headers=self.__create_authorisation_headers(),
+                    timeout=self._http_timeout,
+                    **kwargs,
+                )
+            except (requests.ConnectionError, requests.Timeout) as error:
+                if attempt == _TRANSIENT_RETRY_COUNT:
+                    raise
+
+                LOGGER.warning(
+                    (
+                        "Transient SQL Admin API request failure; retrying in %s "
+                        "seconds; url=%s retry=%s/%s error_type=%s error=%s"
+                    ),
+                    _TRANSIENT_RETRY_DELAY_SECONDS,
+                    url,
+                    attempt + 1,
+                    _TRANSIENT_RETRY_COUNT,
+                    type(error).__name__,
+                    error,
+                )
+                time.sleep(_TRANSIENT_RETRY_DELAY_SECONDS)
+
+        raise RuntimeError("SQL Admin API request retry loop exited unexpectedly")
 
     def __get_instance_api_url(self, instance_name: str) -> str:
         normalized_instance_name = self.__normalize_instance_name(instance_name)
