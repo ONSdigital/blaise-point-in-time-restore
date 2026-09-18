@@ -1,5 +1,4 @@
 import logging
-import random
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,8 +8,6 @@ from services.database_clone_service import DatabaseCloneService
 from services.database_restore_service import DatabaseRestoreService
 
 LOGGER = logging.getLogger(__name__)
-_CLEANUP_RETRY_COUNT = 4
-_CLEANUP_RETRY_BASE_DELAY_SECONDS = 2
 
 
 @dataclass(slots=True)
@@ -155,6 +152,7 @@ class PitrOrchestratorService:
                 request=request,
                 clone_instance_name=clone_instance_name,
                 restore_error=restore_error,
+                started_at=started_at,
             )
 
         LOGGER.info(
@@ -257,90 +255,64 @@ class PitrOrchestratorService:
         request: PitrRequest,
         clone_instance_name: str,
         restore_error: Exception | None,
+        started_at: float,
     ) -> None:
-        cleanup_error: Exception | None = None
-        for attempt in range(_CLEANUP_RETRY_COUNT + 1):
-            try:
-                LOGGER.info(
-                    "Deleting temporary clone; request_id=%s clone=%s attempt=%s/%s",
-                    request.request_id,
-                    clone_instance_name,
-                    attempt + 1,
-                    _CLEANUP_RETRY_COUNT + 1,
-                )
-                delete_operation = self._clone_service.delete_clone(clone_instance_name)
-                LOGGER.info(
-                    (
-                        "Waiting for temporary clone deletion; request_id=%s "
-                        "operation=%s clone=%s"
-                    ),
-                    request.request_id,
-                    delete_operation,
-                    clone_instance_name,
-                )
-                self._clone_service.wait_for_operation(
-                    delete_operation,
-                    timeout_seconds=request.operation_timeout_seconds,
-                    poll_interval_seconds=request.operation_poll_seconds,
-                )
-                LOGGER.info(
-                    "Temporary clone deleted; request_id=%s clone=%s",
-                    request.request_id,
-                    clone_instance_name,
-                )
-                return
-            except Exception as error:
-                cleanup_error = error
-                try:
-                    if not self._clone_service.instance_exists(clone_instance_name):
-                        LOGGER.info(
-                            (
-                                "Temporary clone deletion confirmed after an uncertain "
-                                "response; request_id=%s clone=%s"
-                            ),
-                            request.request_id,
-                            clone_instance_name,
-                        )
-                        return
-                except Exception as existence_error:
-                    cleanup_error = existence_error
-
-                if attempt == _CLEANUP_RETRY_COUNT:
-                    break
-
-                delay_seconds = self.__cleanup_retry_delay_seconds(attempt)
-                LOGGER.warning(
-                    (
-                        "Temporary clone cleanup attempt failed; retrying with "
-                        "exponential backoff; request_id=%s clone=%s retry=%s/%s "
-                        "delay_seconds=%.2f error_type=%s error=%s"
-                    ),
-                    request.request_id,
-                    clone_instance_name,
-                    attempt + 1,
-                    _CLEANUP_RETRY_COUNT,
-                    delay_seconds,
-                    type(cleanup_error).__name__,
-                    cleanup_error,
-                )
-                time.sleep(delay_seconds)
-
-        assert cleanup_error is not None
-        LOGGER.error(
-            "Temporary clone cleanup failed after retries; request_id=%s clone=%s "
-            "error_type=%s error=%s",
+        LOGGER.info(
+            (
+                "Starting temporary clone cleanup; request_id=%s clone=%s "
+                "elapsed_seconds=%.2f"
+            ),
             request.request_id,
             clone_instance_name,
-            type(cleanup_error).__name__,
-            cleanup_error,
+            time.monotonic() - started_at,
         )
-        if restore_error is None:
-            raise cleanup_error
+        try:
+            delete_operation = self._clone_service.delete_clone(clone_instance_name)
+            LOGGER.info(
+                (
+                    "Waiting for temporary clone deletion; request_id=%s "
+                    "operation=%s clone=%s"
+                ),
+                request.request_id,
+                delete_operation,
+                clone_instance_name,
+            )
+            self._clone_service.wait_for_operation(
+                delete_operation,
+                timeout_seconds=request.operation_timeout_seconds,
+                poll_interval_seconds=request.operation_poll_seconds,
+            )
+            LOGGER.info(
+                "Temporary clone deleted; request_id=%s clone=%s",
+                request.request_id,
+                clone_instance_name,
+            )
+        except Exception as cleanup_error:
+            try:
+                if not self._clone_service.instance_exists(clone_instance_name):
+                    LOGGER.info(
+                        (
+                            "Temporary clone deletion confirmed after an uncertain "
+                            "response; request_id=%s clone=%s"
+                        ),
+                        request.request_id,
+                        clone_instance_name,
+                    )
+                    return
+            except Exception:
+                pass
 
-    @staticmethod
-    def __cleanup_retry_delay_seconds(attempt: int) -> float:
-        maximum_delay = _CLEANUP_RETRY_BASE_DELAY_SECONDS * (2**attempt)
-        return random.uniform(maximum_delay / 2, maximum_delay)
+            LOGGER.error(
+                "Temporary clone cleanup could not be confirmed; request_id=%s "
+                "clone=%s elapsed_seconds=%.2f error_type=%s error=%s",
+                request.request_id,
+                clone_instance_name,
+                time.monotonic() - started_at,
+                type(cleanup_error).__name__,
+                cleanup_error,
+            )
+            if restore_error is not None:
+                return
 
     @staticmethod
     def __build_retry_clone_name(base_name: str) -> str:

@@ -34,6 +34,10 @@ class DatabaseCloneService:
             http_connect_timeout_seconds,
             http_read_timeout_seconds,
         )
+        self._session = self.__create_session()
+
+    def close(self) -> None:
+        self._session.close()
 
     def create_clone(self, database_clone_model: DatabaseCloneModel) -> str:
         clone_api_url = self.__get_instance_api_url(
@@ -250,9 +254,9 @@ class DatabaseCloneService:
     def __request_with_authorisation_retry(
         self, method: str, url: str, **kwargs: Any
     ) -> requests.Response:
-        request_method = getattr(requests, method)
         for attempt in range(_TRANSIENT_RETRY_COUNT + 1):
             try:
+                request_method = getattr(self._session, method)
                 response = request_method(
                     url=url,
                     headers=self.__create_authorisation_headers(),
@@ -289,6 +293,7 @@ class DatabaseCloneService:
                 if attempt == _TRANSIENT_RETRY_COUNT:
                     raise
 
+                self.__reset_session()
                 self.__log_transient_request_retry(
                     url=url,
                     retry_number=attempt + 1,
@@ -298,6 +303,14 @@ class DatabaseCloneService:
                 time.sleep(self.__transient_retry_delay_seconds(attempt))
 
         raise RuntimeError("SQL Admin API request retry loop exited unexpectedly")
+
+    @staticmethod
+    def __create_session() -> requests.Session:
+        return requests.Session()
+
+    def __reset_session(self) -> None:
+        self._session.close()
+        self._session = self.__create_session()
 
     @staticmethod
     def __transient_retry_delay_seconds(attempt: int) -> float:

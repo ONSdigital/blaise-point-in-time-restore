@@ -201,7 +201,7 @@ def test_restore_failure_is_reraised_even_if_clone_cleanup_also_fails(
         service.restore_questionnaire_from_point_in_time(pitr_request)
 
 
-def test_cleanup_failure_is_raised_when_restore_succeeds(
+def test_cleanup_failure_does_not_fail_a_successful_restore(
     clone_service: Mock,
     restore_service: Mock,
     pitr_request: PitrRequest,
@@ -213,43 +213,27 @@ def test_cleanup_failure_is_raised_when_restore_succeeds(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    with pytest.raises(RuntimeError, match="cleanup failed"):
-        with (
-            patch(
-                "services.pitr_orchestrator_service.random.uniform",
-                side_effect=[1.0, 2.0, 4.0, 8.0],
-            ),
-            patch("services.pitr_orchestrator_service.time.sleep") as mock_sleep,
-        ):
-            service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_questionnaire_from_point_in_time(pitr_request)
 
-    assert mock_sleep.call_args_list == [call(1.0), call(2.0), call(4.0), call(8.0)]
+    clone_service.delete_clone.assert_called_once()
 
 
-def test_cleanup_retries_delete_when_clone_still_exists(
+def test_cleanup_uses_request_retry_layer_when_clone_still_exists(
     clone_service: Mock,
     restore_service: Mock,
     pitr_request: PitrRequest,
 ) -> None:
     clone_service.instance_exists.side_effect = [False, True]
-    clone_service.delete_clone.side_effect = [
-        requests.ConnectionError("TLS connection closed"),
-        "delete-op",
-    ]
+    clone_service.delete_clone.side_effect = requests.ConnectionError(
+        "TLS connection closed"
+    )
     service = PitrOrchestratorService(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    with (
-        patch(
-            "services.pitr_orchestrator_service.random.uniform", return_value=1.0
-        ),
-        patch("services.pitr_orchestrator_service.time.sleep") as mock_sleep,
-    ):
-        service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_questionnaire_from_point_in_time(pitr_request)
 
-    assert clone_service.delete_clone.call_count == 2
-    assert mock_sleep.call_args_list == [call(1.0)]
+    clone_service.delete_clone.assert_called_once()
 
 
 def test_retry_clone_name_is_truncated_to_cloud_sql_limit() -> None:

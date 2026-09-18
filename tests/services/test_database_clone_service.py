@@ -9,6 +9,8 @@ from models.database_clone_model import DatabaseCloneModel
 from services.database_clone_service import DatabaseCloneService
 
 _EXPECTED_TRANSIENT_REQUEST_CALLS = 4
+_EXPECTED_REPLACEMENT_SESSION_CALLS = 1
+_EXPECTED_HTTP_STATUS_RETRY_CALLS = 2
 
 
 @pytest.fixture
@@ -38,7 +40,7 @@ def test_create_clone_returns_operation_name(
     response.raise_for_status.return_value = None
 
     with patch(
-        "services.database_clone_service.requests.post", return_value=response
+        "services.database_clone_service.requests.Session.post", return_value=response
     ) as mock_post:
         operation = clone_service.create_clone(clone_model)
 
@@ -60,7 +62,10 @@ def test_create_clone_raises_when_no_operation_name(
     response.raise_for_status.return_value = None
 
     with (
-        patch("services.database_clone_service.requests.post", return_value=response),
+        patch(
+            "services.database_clone_service.requests.Session.post",
+            return_value=response,
+        ),
         pytest.raises(ValueError, match="no operation name"),
     ):
         clone_service.create_clone(clone_model)
@@ -76,7 +81,7 @@ def test_delete_clone_returns_operation_name(
     response.json.return_value = {"name": "op-delete"}
 
     with patch(
-        "services.database_clone_service.requests.delete", return_value=response
+        "services.database_clone_service.requests.Session.delete", return_value=response
     ) as mock_delete:
         operation = clone_service.delete_clone("clone-instance")
 
@@ -100,11 +105,11 @@ def test_delete_clone_handles_deletion_protection(
 
     with (
         patch(
-            "services.database_clone_service.requests.delete",
+            "services.database_clone_service.requests.Session.delete",
             side_effect=[protected_delete, successful_delete],
         ) as mock_delete,
         patch(
-            "services.database_clone_service.requests.patch",
+            "services.database_clone_service.requests.Session.patch",
         ) as mock_patch,
         patch.object(clone_service, "wait_for_operation") as mock_wait,
     ):
@@ -133,7 +138,7 @@ def test_disable_deletion_protection_waits_for_patch_operation(
 
     with (
         patch(
-            "services.database_clone_service.requests.patch",
+            "services.database_clone_service.requests.Session.patch",
             return_value=patch_response,
         ) as mock_patch,
         patch.object(clone_service, "wait_for_operation") as mock_wait,
@@ -173,11 +178,11 @@ def test_delete_clone_retries_patch_when_instance_stopped(
 
     with (
         patch(
-            "services.database_clone_service.requests.delete",
+            "services.database_clone_service.requests.Session.delete",
             side_effect=[protected_delete, successful_delete],
         ),
         patch(
-            "services.database_clone_service.requests.patch",
+            "services.database_clone_service.requests.Session.patch",
             side_effect=[first_patch, second_patch],
         ) as mock_patch,
         patch.object(clone_service, "wait_for_operation") as mock_wait,
@@ -199,7 +204,10 @@ def test_delete_clone_raises_when_operation_name_missing(
     response.json.return_value = {}
 
     with (
-        patch("services.database_clone_service.requests.delete", return_value=response),
+        patch(
+            "services.database_clone_service.requests.Session.delete",
+            return_value=response,
+        ),
         pytest.raises(ValueError, match="no operation name"),
     ):
         clone_service.delete_clone("clone-instance")
@@ -211,7 +219,7 @@ def test_get_instance_returns_payload(clone_service: DatabaseCloneService) -> No
     response.json.return_value = {"name": "i1", "connectionName": "proj:reg:i1"}
 
     with patch(
-        "services.database_clone_service.requests.get", return_value=response
+        "services.database_clone_service.requests.Session.get", return_value=response
     ) as mock_get:
         instance = clone_service.get_instance("i1")
 
@@ -226,7 +234,7 @@ def test_instance_exists_returns_false_on_404(
     response.status_code = 404
 
     with patch(
-        "services.database_clone_service.requests.get", return_value=response
+        "services.database_clone_service.requests.Session.get", return_value=response
     ) as mock_get:
         exists = clone_service.instance_exists("missing")
 
@@ -241,7 +249,9 @@ def test_instance_exists_returns_true_for_existing_instance(
     response.status_code = 200
     response.raise_for_status.return_value = None
 
-    with patch("services.database_clone_service.requests.get", return_value=response):
+    with patch(
+        "services.database_clone_service.requests.Session.get", return_value=response
+    ):
         exists = clone_service.instance_exists("exists")
 
     assert exists is True
@@ -255,7 +265,7 @@ def test_wait_for_operation_returns_when_done(
     response.json.return_value = {"status": "DONE", "name": "op1"}
 
     with patch(
-        "services.database_clone_service.requests.get", return_value=response
+        "services.database_clone_service.requests.Session.get", return_value=response
     ) as mock_get:
         operation = clone_service.wait_for_operation("op1", timeout_seconds=30)
 
@@ -278,7 +288,7 @@ def test_clone_service_supports_custom_http_timeouts(
     response.json.return_value = {"name": "i1", "connectionName": "proj:reg:i1"}
 
     with patch(
-        "services.database_clone_service.requests.get", return_value=response
+        "services.database_clone_service.requests.Session.get", return_value=response
     ) as mock_get:
         clone_service.get_instance("i1")
 
@@ -293,7 +303,10 @@ def test_wait_for_operation_raises_for_operation_error(
     response.json.return_value = {"status": "DONE", "error": {"message": "boom"}}
 
     with (
-        patch("services.database_clone_service.requests.get", return_value=response),
+        patch(
+            "services.database_clone_service.requests.Session.get",
+            return_value=response,
+        ),
         pytest.raises(RuntimeError, match="operation failed"),
     ):
         clone_service.wait_for_operation("op1", timeout_seconds=30)
@@ -305,7 +318,10 @@ def test_wait_for_operation_times_out(clone_service: DatabaseCloneService) -> No
     response.json.return_value = {"status": "RUNNING"}
 
     with (
-        patch("services.database_clone_service.requests.get", return_value=response),
+        patch(
+            "services.database_clone_service.requests.Session.get",
+            return_value=response,
+        ),
         patch(
             "services.database_clone_service.time.monotonic",
             side_effect=[0.0, 0.0, 10.0, 10.0],
@@ -333,7 +349,7 @@ def test_wait_for_operation_polls_until_done(
 
     with (
         patch(
-            "services.database_clone_service.requests.get",
+            "services.database_clone_service.requests.Session.get",
             side_effect=[running_response, done_response],
         ),
         patch(
@@ -362,7 +378,7 @@ def test_wait_for_operation_retries_once_when_unauthorized(
     done_response.json.return_value = {"status": "DONE", "name": "op1"}
 
     with patch(
-        "services.database_clone_service.requests.get",
+        "services.database_clone_service.requests.Session.get",
         side_effect=[unauthorized_response, done_response],
     ) as mock_get:
         operation = clone_service.wait_for_operation("op1", timeout_seconds=30)
@@ -382,7 +398,7 @@ def test_wait_for_operation_retries_three_transient_connection_failures(
 
     with (
         patch(
-            "services.database_clone_service.requests.get",
+            "services.database_clone_service.requests.Session.get",
             side_effect=[
                 requests.ConnectionError("connection failed"),
                 requests.Timeout("request timed out"),
@@ -403,6 +419,35 @@ def test_wait_for_operation_retries_three_transient_connection_failures(
     assert mock_sleep.call_args_list == [call(0.5), call(1.5), call(3.5)]
 
 
+def test_transient_connection_failure_replaces_session(
+    clone_service: DatabaseCloneService,
+) -> None:
+    failed_session = Mock()
+    failed_session.get.side_effect = requests.ConnectionError("TLS connection closed")
+    replacement_session = Mock()
+    replacement_session.get.return_value.status_code = 200
+    replacement_session.get.return_value.raise_for_status.return_value = None
+    replacement_session.get.return_value.json.return_value = {
+        "status": "DONE",
+        "name": "op1",
+    }
+    clone_service._session = failed_session
+
+    with (
+        patch.object(
+            clone_service,
+            "_DatabaseCloneService__create_session",
+            return_value=replacement_session,
+        ),
+        patch("services.database_clone_service.random.uniform", return_value=0.5),
+        patch("services.database_clone_service.time.sleep"),
+    ):
+        clone_service.wait_for_operation("op1", timeout_seconds=30)
+
+    failed_session.close.assert_called_once()
+    assert replacement_session.get.call_count == _EXPECTED_REPLACEMENT_SESSION_CALLS
+
+
 def test_wait_for_operation_retries_transient_http_status(
     clone_service: DatabaseCloneService,
 ) -> None:
@@ -416,7 +461,7 @@ def test_wait_for_operation_retries_transient_http_status(
 
     with (
         patch(
-            "services.database_clone_service.requests.get",
+            "services.database_clone_service.requests.Session.get",
             side_effect=[unavailable_response, done_response],
         ) as mock_get,
         patch(
@@ -427,7 +472,7 @@ def test_wait_for_operation_retries_transient_http_status(
         operation = clone_service.wait_for_operation("op1", timeout_seconds=30)
 
     assert operation["status"] == "DONE"
-    assert mock_get.call_count == 2
+    assert mock_get.call_count == _EXPECTED_HTTP_STATUS_RETRY_CALLS
     mock_sleep.assert_called_once_with(0.5)
 
 
@@ -436,7 +481,7 @@ def test_wait_for_operation_raises_after_three_transient_retries(
 ) -> None:
     with (
         patch(
-            "services.database_clone_service.requests.get",
+            "services.database_clone_service.requests.Session.get",
             side_effect=requests.Timeout("request timed out"),
         ) as mock_get,
         patch(
