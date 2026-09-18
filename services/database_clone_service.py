@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 from datetime import UTC
 from typing import Any
@@ -13,7 +14,8 @@ HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
 HTTP_UNAUTHORIZED = 401
 _TRANSIENT_RETRY_COUNT = 3
-_TRANSIENT_RETRY_DELAY_SECONDS = 20
+_TRANSIENT_RETRY_BASE_DELAY_SECONDS = 1
+_TRANSIENT_HTTP_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
 
 class DatabaseCloneService:
@@ -257,6 +259,19 @@ class DatabaseCloneService:
                     timeout=self._http_timeout,
                     **kwargs,
                 )
+                if response.status_code in _TRANSIENT_HTTP_STATUS_CODES:
+                    if attempt == _TRANSIENT_RETRY_COUNT:
+                        return response
+
+                    self.__log_transient_request_retry(
+                        url=url,
+                        retry_number=attempt + 1,
+                        error_type="HttpStatusError",
+                        error=f"HTTP {response.status_code}",
+                    )
+                    time.sleep(self.__transient_retry_delay_seconds(attempt))
+                    continue
+
                 if response.status_code != HTTP_UNAUTHORIZED:
                     return response
 
@@ -274,21 +289,39 @@ class DatabaseCloneService:
                 if attempt == _TRANSIENT_RETRY_COUNT:
                     raise
 
-                LOGGER.warning(
-                    (
-                        "Transient SQL Admin API request failure; retrying in %s "
-                        "seconds; url=%s retry=%s/%s error_type=%s error=%s"
-                    ),
-                    _TRANSIENT_RETRY_DELAY_SECONDS,
-                    url,
-                    attempt + 1,
-                    _TRANSIENT_RETRY_COUNT,
-                    type(error).__name__,
-                    error,
+                self.__log_transient_request_retry(
+                    url=url,
+                    retry_number=attempt + 1,
+                    error_type=type(error).__name__,
+                    error=str(error),
                 )
-                time.sleep(_TRANSIENT_RETRY_DELAY_SECONDS)
+                time.sleep(self.__transient_retry_delay_seconds(attempt))
 
         raise RuntimeError("SQL Admin API request retry loop exited unexpectedly")
+
+    @staticmethod
+    def __transient_retry_delay_seconds(attempt: int) -> float:
+        maximum_delay = _TRANSIENT_RETRY_BASE_DELAY_SECONDS * (2**attempt)
+        return random.uniform(maximum_delay / 2, maximum_delay)
+
+    @staticmethod
+    def __log_transient_request_retry(
+        url: str,
+        retry_number: int,
+        error_type: str,
+        error: str,
+    ) -> None:
+        LOGGER.warning(
+            (
+                "Transient SQL Admin API request failure; retrying with exponential "
+                "backoff; url=%s retry=%s/%s error_type=%s error=%s"
+            ),
+            url,
+            retry_number,
+            _TRANSIENT_RETRY_COUNT,
+            error_type,
+            error,
+        )
 
     def __get_instance_api_url(self, instance_name: str) -> str:
         normalized_instance_name = self.__normalize_instance_name(instance_name)

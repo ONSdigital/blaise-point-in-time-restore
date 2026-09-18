@@ -390,13 +390,45 @@ def test_wait_for_operation_retries_three_transient_connection_failures(
                 done_response,
             ],
         ) as mock_get,
+        patch(
+            "services.database_clone_service.random.uniform",
+            side_effect=[0.5, 1.5, 3.5],
+        ),
         patch("services.database_clone_service.time.sleep") as mock_sleep,
     ):
         operation = clone_service.wait_for_operation("op1", timeout_seconds=90)
 
     assert operation["status"] == "DONE"
     assert mock_get.call_count == _EXPECTED_TRANSIENT_REQUEST_CALLS
-    assert mock_sleep.call_args_list == [call(20), call(20), call(20)]
+    assert mock_sleep.call_args_list == [call(0.5), call(1.5), call(3.5)]
+
+
+def test_wait_for_operation_retries_transient_http_status(
+    clone_service: DatabaseCloneService,
+) -> None:
+    unavailable_response = Mock()
+    unavailable_response.status_code = 503
+
+    done_response = Mock()
+    done_response.status_code = 200
+    done_response.raise_for_status.return_value = None
+    done_response.json.return_value = {"status": "DONE", "name": "op1"}
+
+    with (
+        patch(
+            "services.database_clone_service.requests.get",
+            side_effect=[unavailable_response, done_response],
+        ) as mock_get,
+        patch(
+            "services.database_clone_service.random.uniform", return_value=0.5
+        ),
+        patch("services.database_clone_service.time.sleep") as mock_sleep,
+    ):
+        operation = clone_service.wait_for_operation("op1", timeout_seconds=30)
+
+    assert operation["status"] == "DONE"
+    assert mock_get.call_count == 2
+    mock_sleep.assert_called_once_with(0.5)
 
 
 def test_wait_for_operation_raises_after_three_transient_retries(
@@ -407,13 +439,17 @@ def test_wait_for_operation_raises_after_three_transient_retries(
             "services.database_clone_service.requests.get",
             side_effect=requests.Timeout("request timed out"),
         ) as mock_get,
+        patch(
+            "services.database_clone_service.random.uniform",
+            side_effect=[0.5, 1.5, 3.5],
+        ),
         patch("services.database_clone_service.time.sleep") as mock_sleep,
         pytest.raises(requests.Timeout, match="request timed out"),
     ):
         clone_service.wait_for_operation("op1", timeout_seconds=90)
 
     assert mock_get.call_count == _EXPECTED_TRANSIENT_REQUEST_CALLS
-    assert mock_sleep.call_args_list == [call(20), call(20), call(20)]
+    assert mock_sleep.call_args_list == [call(0.5), call(1.5), call(3.5)]
 
 
 def test_create_clone_request_body_normalizes_to_utc_z_suffix() -> None:
