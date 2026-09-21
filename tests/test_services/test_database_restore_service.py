@@ -14,6 +14,7 @@ class TestRestoreFunctionality:
     def service_under_test(self, mock_database_service: Mock) -> DatabaseRestoreService:
         return DatabaseRestoreService(
             database_service=mock_database_service,
+            database_name="blaise",
         )
 
     def test_database_restore_service_restores_dml_and_form_for_single_questionnaire(
@@ -25,12 +26,12 @@ class TestRestoreFunctionality:
         destination_instance_name = "blaise-dev-test"
         expected_calls = [
             call(
-                f"{questionnaire_name}_Dml",
+                f"{questionnaire_name}_DML",
                 source_instance_name,
                 destination_instance_name,
             ),
             call(
-                f"{questionnaire_name}_Form",
+                f"{questionnaire_name}_FORM",
                 source_instance_name,
                 destination_instance_name,
             ),
@@ -47,6 +48,31 @@ class TestRestoreFunctionality:
             destination_instance_name,
         )
         mock_database_service.copy_table_data.assert_has_calls(expected_calls)
+
+    def test_restores_questionnaire_table_for_non_blaise_database(
+        self, mock_database_service
+    ):
+        questionnaire_name = "appointments"
+        source_instance_name = "survey-dev-test-clone"
+        destination_instance_name = "survey-dev-test"
+        service_under_test = DatabaseRestoreService(
+            database_service=mock_database_service,
+            database_name="survey_data",
+        )
+
+        service_under_test.restore_questionnaire_tables(
+            questionnaire_name, source_instance_name, destination_instance_name
+        )
+
+        mock_database_service.ensure_bucket_permissions_for_instances.assert_called_once_with(
+            source_instance_name,
+            destination_instance_name,
+        )
+        mock_database_service.copy_table_data.assert_called_once_with(
+            questionnaire_name,
+            source_instance_name,
+            destination_instance_name,
+        )
 
     @pytest.mark.parametrize("questionnaire_name", [None, "", " ", "   "])
     def test_throws_error_when_no_questionnaire_name_is_provided(

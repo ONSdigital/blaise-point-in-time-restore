@@ -52,7 +52,10 @@ def _get_orchestrator(database_name: str) -> PitrOrchestratorService:
         http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
         http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
     )
-    database_restore_service = DatabaseRestoreService(database_service)
+    database_restore_service = DatabaseRestoreService(
+        database_service=database_service,
+        database_name=database_name,
+    )
     return PitrOrchestratorService(
         clone_service=clone_service,
         restore_service=database_restore_service,

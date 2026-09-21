@@ -10,8 +10,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DatabaseRestoreService:
-    def __init__(self, database_service: DatabaseService):
+    def __init__(self, database_service: DatabaseService, database_name: str):
         self._database_service = database_service
+        self._database_name = database_name
 
     def restore_questionnaire_tables(
         self,
@@ -25,7 +26,11 @@ class DatabaseRestoreService:
             destination_instance_name, "destination_instance_name"
         )
 
-        table_names = [f"{questionnaire_name}_Dml", f"{questionnaire_name}_Form"]
+        table_names = (
+            [f"{questionnaire_name}_DML", f"{questionnaire_name}_FORM"]
+            if self._database_name.casefold() == "blaise"
+            else [questionnaire_name]
+        )
 
         self.__restore_tables(
             table_names, source_instance_name, destination_instance_name

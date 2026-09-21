@@ -130,11 +130,10 @@ class PitrOrchestratorService:
             LOGGER.info(
                 (
                     "Questionnaire table restore completed; request_id=%s "
-                    "questionnaire=%s tables=%s"
+                    "questionnaire=%s"
                 ),
                 request.request_id,
                 request.questionnaire_name,
-                f"{request.questionnaire_name}_Dml,{request.questionnaire_name}_Form",
             )
         except Exception as error:
             restore_error = error
