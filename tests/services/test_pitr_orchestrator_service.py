@@ -37,7 +37,7 @@ def restore_service() -> Mock:
 def pitr_request() -> PitrRequest:
     return PitrRequest(
         request_id="request-1",
-        questionnaire_name="LMS2601_KX2",
+        table_name="LMS2601_KX2",
         timestamp=datetime(2026, 7, 8, 13, 30, 0, tzinfo=UTC),
         source_instance_name="proj:reg:source",
         destination_instance_name="proj:reg:dest",
@@ -47,7 +47,7 @@ def pitr_request() -> PitrRequest:
     )
 
 
-def test_restore_questionnaire_from_point_in_time_happy_path(
+def test_restore_table_from_point_in_time_happy_path(
     clone_service: Mock,
     restore_service: Mock,
     pitr_request: PitrRequest,
@@ -56,7 +56,7 @@ def test_restore_questionnaire_from_point_in_time_happy_path(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_table_from_point_in_time(pitr_request)
 
     clone_service.get_instance.assert_has_calls(
         [
@@ -71,7 +71,7 @@ def test_restore_questionnaire_from_point_in_time_happy_path(
             call("delete-op", timeout_seconds=120, poll_interval_seconds=2),
         ]
     )
-    restore_service.restore_questionnaire_tables.assert_called_once_with(
+    restore_service.restore_table_data.assert_called_once_with(
         "LMS2601_KX2",
         source_instance_name="proj:reg:clone-conn",
         destination_instance_name="proj:reg:dest",
@@ -93,13 +93,13 @@ def test_deletion_protection_is_disabled_before_restore(
     ]
     parent = Mock()
     parent.attach_mock(clone_service.disable_deletion_protection, "disable")
-    parent.attach_mock(restore_service.restore_questionnaire_tables, "restore")
+    parent.attach_mock(restore_service.restore_table_data, "restore")
 
     service = PitrOrchestratorService(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_table_from_point_in_time(pitr_request)
 
     assert parent.mock_calls[:2] == [
         call.disable(pitr_request.clone_instance_name),
@@ -131,9 +131,9 @@ def test_restore_continues_when_proactive_protection_disable_fails(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_table_from_point_in_time(pitr_request)
 
-    restore_service.restore_questionnaire_tables.assert_called_once()
+    restore_service.restore_table_data.assert_called_once()
 
 
 def test_existing_stale_clone_is_deleted_before_recreate(
@@ -148,7 +148,7 @@ def test_existing_stale_clone_is_deleted_before_recreate(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_table_from_point_in_time(pitr_request)
 
     clone_service.wait_for_operation.assert_has_calls(
         [
@@ -177,7 +177,7 @@ def test_fallback_clone_name_used_when_stale_clone_delete_fails(
     with patch(
         "services.pitr_orchestrator_service.time.time", return_value=1_725_000_000
     ):
-        service.restore_questionnaire_from_point_in_time(pitr_request)
+        service.restore_table_from_point_in_time(pitr_request)
 
     clone_model_used = clone_service.create_clone.call_args.args[0]
     assert clone_model_used.destination_instance_name.endswith("-1725000000")
@@ -188,7 +188,7 @@ def test_restore_failure_is_reraised_even_if_clone_cleanup_also_fails(
     restore_service: Mock,
     pitr_request: PitrRequest,
 ) -> None:
-    restore_service.restore_questionnaire_tables.side_effect = RuntimeError(
+    restore_service.restore_table_data.side_effect = RuntimeError(
         "restore failed"
     )
     clone_service.delete_clone.side_effect = RuntimeError("cleanup failed")
@@ -198,7 +198,7 @@ def test_restore_failure_is_reraised_even_if_clone_cleanup_also_fails(
     )
 
     with pytest.raises(RuntimeError, match="restore failed"):
-        service.restore_questionnaire_from_point_in_time(pitr_request)
+        service.restore_table_from_point_in_time(pitr_request)
 
 
 def test_cleanup_failure_does_not_fail_a_successful_restore(
@@ -213,7 +213,7 @@ def test_cleanup_failure_does_not_fail_a_successful_restore(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_table_from_point_in_time(pitr_request)
 
     clone_service.delete_clone.assert_called_once()
 
@@ -231,7 +231,7 @@ def test_cleanup_uses_request_retry_layer_when_clone_still_exists(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_questionnaire_from_point_in_time(pitr_request)
+    service.restore_table_from_point_in_time(pitr_request)
 
     clone_service.delete_clone.assert_called_once()
 
@@ -250,11 +250,11 @@ def test_retry_clone_name_is_truncated_to_cloud_sql_limit() -> None:
 
 def test_build_clone_instance_name_normalizes_and_truncates() -> None:
     timestamp = datetime(2026, 7, 8, 13, 30, 0, tzinfo=UTC)
-    long_questionnaire = "  LMS 2601 KX2 !!! " + ("ABC" * 50)
-    short_questionnaire = "LMS2601_KX2"
+    long_table_name = "  LMS 2601 KX2 !!! " + ("ABC" * 50)
+    short_table_name = "LMS2601_KX2"
 
-    clone_name = build_clone_instance_name("pitr", long_questionnaire, timestamp)
-    short_clone_name = build_clone_instance_name("pitr", short_questionnaire, timestamp)
+    clone_name = build_clone_instance_name("pitr", long_table_name, timestamp)
+    short_clone_name = build_clone_instance_name("pitr", short_table_name, timestamp)
 
     assert clone_name.startswith("pitr-lms-2601-kx2")
     assert len(clone_name) <= _CLOUD_SQL_MAX_NAME_LENGTH

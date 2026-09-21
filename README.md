@@ -1,13 +1,13 @@
-# Blaise Questionnaire Point-in-Time Restore
+# Cloud SQL Table Point-in-Time Restore
 
-This repository contains the source for a deployable HTTP Google Cloud Function. The function restores questionnaire data to a specific point in time by creating a temporary Cloud SQL clone, exporting the questionnaire tables to Cloud Storage, and importing them into the live database.
+This repository contains the source for a deployable HTTP Google Cloud Function. The function restores table data to a specific point in time by creating a temporary Cloud SQL clone, exporting the required tables to Cloud Storage, and importing them into the live database.
 
 The Cloud Function is intended to be packaged and deployed by Terraform maintained in a separate infrastructure repository. This repository does not create infrastructure or deploy itself.
 
 ## Function Contract
 
 - Runtime: Python 3.13
-- Entry point: `restore_point_in_time_questionnaire`
+- Entry point: `restore_table_from_point_in_time`
 - Trigger: HTTP
 - Request content type: `application/json`
 - Maximum execution time: 3600 seconds
@@ -17,7 +17,7 @@ The function expects this request body:
 
 ```json
 {
-   "questionnaire_name": "LMS2601_KX2",
+  "table_name": "LMS2601_KX2",
   "timestamp": "2026-07-08 14:30:00",
   "database_name": "blaise"
 }
@@ -25,18 +25,18 @@ The function expects this request body:
 
 `timestamp` is parsed as UK local time (`Europe/London`) when no timezone offset is supplied. An ISO 8601 timestamp with an explicit offset is also accepted.
 
-`database_name` identifies the destination database containing the questionnaire tables.
+`table_name` identifies the table to restore. `database_name` identifies the source and destination database containing that table.
 
 Successful requests return HTTP `200`. Validation failures return HTTP `400`, and restore failures return HTTP `500` with a request ID that can be matched to Cloud Logging entries.
 
 ## What Gets Restored
 
-The restore currently targets two tables per questionnaire:
+For the `blaise` database, `table_name` is treated as the base questionnaire table name and the following two tables are restored:
 
-- `<QUESTIONNAIRE_NAME>_Dml`
-- `<QUESTIONNAIRE_NAME>_Form`
+- `<TABLE_NAME>_DML`
+- `<TABLE_NAME>_FORM`
 
-The destination tables are restored from SQL export files generated from the clone.
+For any other database, the exact table supplied in `table_name` is restored. The destination tables are restored from SQL export files generated from the clone.
 
 ## Deployment
 
@@ -93,7 +93,7 @@ After Terraform has deployed the function:
 
 ```json
 {
-  "questionnaire_name": "LMS2601_KX2",
+  "table_name": "LMS2601_KX2",
   "timestamp": "2026-07-08 14:30:00",
   "database_name": "blaise"
 }
@@ -106,8 +106,8 @@ The restore runs synchronously. Keep the Console request open until the function
 1. Validate and parse the request.
 2. Read the destination database name from the request and the remaining Cloud SQL configuration supplied by Terraform.
 3. Create a point-in-time clone.
-4. Export `<QUESTIONNAIRE>_Dml` from the clone to Cloud Storage and import it into the destination.
-5. Export `<QUESTIONNAIRE>_Form` from the clone to Cloud Storage and import it into the destination.
+4. Resolve the requested table names. For `blaise`, append `_DML` and `_FORM`; otherwise use `table_name` unchanged.
+5. Export each resolved table from the clone to Cloud Storage and import it into the destination.
 6. Delete the temporary clone, including when a restore step fails.
 
 ## Development

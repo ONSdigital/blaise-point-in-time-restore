@@ -14,22 +14,22 @@ class DatabaseRestoreService:
         self._database_service = database_service
         self._database_name = database_name
 
-    def restore_questionnaire_tables(
+    def restore_table_data(
         self,
-        questionnaire_name: str,
+        table_name: str,
         source_instance_name: str,
         destination_instance_name: str,
     ) -> None:
-        throw_error_if_empty_string(questionnaire_name, "questionnaire_name")
+        throw_error_if_empty_string(table_name, "table_name")
         throw_error_if_empty_string(source_instance_name, "source_instance_name")
         throw_error_if_empty_string(
             destination_instance_name, "destination_instance_name"
         )
 
         table_names = (
-            [f"{questionnaire_name}_DML", f"{questionnaire_name}_FORM"]
+            [f"{table_name}_DML", f"{table_name}_FORM"]
             if self._database_name.casefold() == "blaise"
-            else [questionnaire_name]
+            else [table_name]
         )
 
         self.__restore_tables(

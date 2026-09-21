@@ -13,7 +13,7 @@ LOGGER = logging.getLogger(__name__)
 @dataclass(slots=True)
 class PitrRequest:
     request_id: str
-    questionnaire_name: str
+    table_name: str
     timestamp: datetime
     source_instance_name: str
     destination_instance_name: str
@@ -31,15 +31,15 @@ class PitrOrchestratorService:
         self._clone_service = clone_service
         self._restore_service = restore_service
 
-    def restore_questionnaire_from_point_in_time(self, request: PitrRequest) -> None:
+    def restore_table_from_point_in_time(self, request: PitrRequest) -> None:
         started_at = time.monotonic()
         LOGGER.info(
             (
-                "PITR started; request_id=%s questionnaire=%s "
+                "PITR started; request_id=%s table=%s "
                 "source=%s destination=%s clone=%s timestamp=%s"
             ),
             request.request_id,
-            request.questionnaire_name,
+            request.table_name,
             request.source_instance_name,
             request.destination_instance_name,
             request.clone_instance_name,
@@ -114,26 +114,23 @@ class PitrOrchestratorService:
         try:
             LOGGER.info(
                 (
-                    "Starting questionnaire data restore; request_id=%s "
-                    "questionnaire=%s source=%s destination=%s"
+                    "Starting table data restore; request_id=%s "
+                    "table=%s source=%s destination=%s"
                 ),
                 request.request_id,
-                request.questionnaire_name,
+                request.table_name,
                 clone_connection_name,
                 request.destination_instance_name,
             )
-            self._restore_service.restore_questionnaire_tables(
-                request.questionnaire_name,
+            self._restore_service.restore_table_data(
+                request.table_name,
                 source_instance_name=clone_connection_name,
                 destination_instance_name=request.destination_instance_name,
             )
             LOGGER.info(
-                (
-                    "Questionnaire table restore completed; request_id=%s "
-                    "questionnaire=%s"
-                ),
+                "Table restore completed; request_id=%s table=%s",
                 request.request_id,
-                request.questionnaire_name,
+                request.table_name,
             )
         except Exception as error:
             restore_error = error
@@ -155,9 +152,9 @@ class PitrOrchestratorService:
             )
 
         LOGGER.info(
-            ("PITR finished; request_id=%s questionnaire=%s duration_seconds=%.2f"),
+            ("PITR finished; request_id=%s table=%s duration_seconds=%.2f"),
             request.request_id,
-            request.questionnaire_name,
+            request.table_name,
             time.monotonic() - started_at,
         )
 
@@ -322,16 +319,16 @@ class PitrOrchestratorService:
 
 
 def build_clone_instance_name(
-    prefix: str, questionnaire_name: str, timestamp: datetime
+    prefix: str, table_name: str, timestamp: datetime
 ) -> str:
     timestamp_utc = timestamp.astimezone(UTC)
     compact_timestamp = timestamp_utc.strftime("%Y%m%d%H%M%S")
-    safe_questionnaire = "".join(
+    safe_table_name = "".join(
         character.lower() if character.isalnum() else "-"
-        for character in questionnaire_name.strip()
+        for character in table_name.strip()
     ).strip("-")
 
-    raw_name = f"{prefix}-{safe_questionnaire}-{compact_timestamp}"
+    raw_name = f"{prefix}-{safe_table_name}-{compact_timestamp}"
     collapsed = "-".join(part for part in raw_name.split("-") if part)
 
     return collapsed[:98]

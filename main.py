@@ -63,7 +63,7 @@ def _get_orchestrator(database_name: str) -> PitrOrchestratorService:
 
 
 def run_restore(
-    questionnaire_name: str,
+    table_name: str,
     restore_timestamp_input: str,
     database_name: str,
     request_id: str | None = None,
@@ -74,13 +74,13 @@ def run_restore(
 
     clone_instance_name = build_clone_instance_name(
         prefix=Settings.CLONE_NAME_PREFIX,
-        questionnaire_name=questionnaire_name,
+        table_name=table_name,
         timestamp=restore_timestamp,
     )
 
     restore_request = PitrRequest(
         request_id=correlation_id,
-        questionnaire_name=questionnaire_name,
+        table_name=table_name,
         timestamp=restore_timestamp,
         source_instance_name=Settings.RESTORE_SOURCE_INSTANCE_NAME,
         destination_instance_name=Settings.DEST_INSTANCE_NAME,
@@ -92,24 +92,24 @@ def run_restore(
     LOGGER.info(
         (
             "Restore request parsed; request_id=%s "
-            "questionnaire=%s uk_local_timestamp=%s clone=%s"
+            "table=%s uk_local_timestamp=%s clone=%s"
         ),
         correlation_id,
-        questionnaire_name,
+        table_name,
         restore_timestamp_input,
         clone_instance_name,
     )
 
-    _get_orchestrator(database_name).restore_questionnaire_from_point_in_time(
+    _get_orchestrator(database_name).restore_table_from_point_in_time(
         restore_request
     )
     LOGGER.info(
         (
             "Restore request finished; request_id=%s "
-            "questionnaire=%s duration_seconds=%.2f"
+            "table=%s duration_seconds=%.2f"
         ),
         correlation_id,
-        questionnaire_name,
+        table_name,
         time.monotonic() - started_at,
     )
 
@@ -135,48 +135,48 @@ def _json_error(
     return flask.jsonify(body), status
 
 
-def restore_point_in_time_questionnaire(
+def restore_table_from_point_in_time(
     request: flask.Request,
 ) -> tuple[flask.Response | str, int]:
     """Cloud Function HTTP entry point."""
     request_id = str(uuid.uuid4())
     data = request.get_json(silent=True) or {}
-    questionnaire_name = str(data.get("questionnaire_name", "")).strip()
+    table_name = str(data.get("table_name", "")).strip()
     timestamp_str = str(data.get("timestamp", "")).strip()
     database_name = str(data.get("database_name", "")).strip()
-    if not questionnaire_name or not timestamp_str or not database_name:
+    if not table_name or not timestamp_str or not database_name:
         LOGGER.error(
             (
                 "Restore request rejected; request_id=%s reason=missing_parameters "
-                "questionnaire_name=%r timestamp=%r database_name=%r"
+                "table_name=%r timestamp=%r database_name=%r"
             ),
             request_id,
-            questionnaire_name,
+            table_name,
             timestamp_str,
             database_name,
         )
         return _json_error(
             code="missing_parameters",
             message="Missing required fields.",
-            details="Expected questionnaire_name, timestamp, and database_name.",
+            details="Expected table_name, timestamp, and database_name.",
             status=400,
             request_id=request_id,
         )
 
     LOGGER.info(
         (
-            "Restore request accepted; request_id=%s questionnaire=%s "
+            "Restore request accepted; request_id=%s table=%s "
             "timestamp=%s database_name=%s"
         ),
         request_id,
-        questionnaire_name,
+        table_name,
         timestamp_str,
         database_name,
     )
 
     try:
         run_restore(
-            questionnaire_name,
+            table_name,
             timestamp_str,
             database_name=database_name,
             request_id=request_id,
@@ -185,10 +185,10 @@ def restore_point_in_time_questionnaire(
         LOGGER.warning(
             (
                 "Restore request rejected; request_id=%s reason=invalid_timestamp "
-                "questionnaire=%s timestamp=%s"
+                "table=%s timestamp=%s"
             ),
             request_id,
-            questionnaire_name,
+            table_name,
             timestamp_str,
         )
         return _json_error(
@@ -203,9 +203,9 @@ def restore_point_in_time_questionnaire(
         )
     except Exception:
         LOGGER.exception(
-            "Restore execution failed; request_id=%s questionnaire=%s timestamp=%s",
+            "Restore execution failed; request_id=%s table=%s timestamp=%s",
             request_id,
-            questionnaire_name,
+            table_name,
             timestamp_str,
         )
         return _json_error(
@@ -217,8 +217,8 @@ def restore_point_in_time_questionnaire(
         )
 
     LOGGER.info(
-        "Restore request completed successfully; request_id=%s questionnaire=%s",
+        "Restore request completed successfully; request_id=%s table=%s",
         request_id,
-        questionnaire_name,
+        table_name,
     )
     return "OK", 200
