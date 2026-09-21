@@ -34,10 +34,6 @@ class _SettingsMeta(type):
         return cls.DEST_INSTANCE_NAME
 
     @property
-    def DEST_DB_NAME(cls) -> str:
-        return _required_environment_variable("DEST_DB_NAME")
-
-    @property
     def RESTORE_GCS_BUCKET(cls) -> str:
         return _required_environment_variable("RESTORE_GCS_BUCKET")
 

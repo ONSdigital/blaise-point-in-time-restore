@@ -18,11 +18,14 @@ The function expects this request body:
 ```json
 {
    "questionnaire_name": "LMS2601_KX2",
-   "timestamp": "2026-07-08 14:30:00"
+  "timestamp": "2026-07-08 14:30:00",
+  "database_name": "blaise"
 }
 ```
 
 `timestamp` is parsed as UK local time (`Europe/London`) when no timezone offset is supplied. An ISO 8601 timestamp with an explicit offset is also accepted.
+
+`database_name` identifies the destination database containing the questionnaire tables.
 
 Successful requests return HTTP `200`. Validation failures return HTTP `400`, and restore failures return HTTP `500` with a request ID that can be matched to Cloud Logging entries.
 
@@ -60,7 +63,6 @@ The following runtime environment variables are required:
 | --- | --- |
 | `PROJECT_ID` | GCP project ID containing the Cloud SQL instance. |
 | `DEST_INSTANCE_NAME` | Cloud SQL instance name or connection name (`project:region:instance`). |
-| `DEST_DB_NAME` | Destination database name, normally `blaise`. |
 | `RESTORE_GCS_BUCKET` | Backup bucket name without the `gs://` prefix. |
 
 The point-in-time restore source is the destination instance itself, so no separate source-instance variable is required. Authentication is provided by the function's attached runtime service account through Application Default Credentials.
@@ -73,9 +75,8 @@ service_config {
   timeout_seconds       = 3600
 
   environment_variables = {
-    PROJECT_ID      = var.project_id
+    PROJECT_ID           = var.project_id
     DEST_INSTANCE_NAME   = google_sql_database_instance.blaise.connection_name
-    DEST_DB_NAME         = google_sql_database.blaise.name
     RESTORE_GCS_BUCKET   = google_storage_bucket.backups.name
   }
 }
@@ -93,7 +94,8 @@ After Terraform has deployed the function:
 ```json
 {
   "questionnaire_name": "LMS2601_KX2",
-  "timestamp": "2026-07-08 14:30:00"
+  "timestamp": "2026-07-08 14:30:00",
+  "database_name": "blaise"
 }
 ```
 
@@ -102,7 +104,7 @@ The restore runs synchronously. Keep the Console request open until the function
 ## Restore Flow
 
 1. Validate and parse the request.
-2. Read the source and destination Cloud SQL configuration supplied by Terraform.
+2. Read the destination database name from the request and the remaining Cloud SQL configuration supplied by Terraform.
 3. Create a point-in-time clone.
 4. Export `<QUESTIONNAIRE>_Dml` from the clone to Cloud Storage and import it into the destination.
 5. Export `<QUESTIONNAIRE>_Form` from the clone to Cloud Storage and import it into the destination.

@@ -38,7 +38,6 @@ def test_settings_reads_required_environment_variables() -> None:
     environment = {
         "PROJECT_ID": "project-1",
         "DEST_INSTANCE_NAME": "project-1:region:blaise-dev-abc12345",
-        "DEST_DB_NAME": "blaise",
         "RESTORE_GCS_BUCKET": "ons-blaise-v2-dev-backups",
     }
 
@@ -48,7 +47,6 @@ def test_settings_reads_required_environment_variables() -> None:
         assert settings.PROJECT_ID == environment["PROJECT_ID"]
         assert settings.DEST_INSTANCE_NAME == environment["DEST_INSTANCE_NAME"]
         assert settings.RESTORE_SOURCE_INSTANCE_NAME == settings.DEST_INSTANCE_NAME
-        assert settings.DEST_DB_NAME == environment["DEST_DB_NAME"]
         assert settings.RESTORE_GCS_BUCKET == environment["RESTORE_GCS_BUCKET"]
         assert settings.RESTORE_GCS_PREFIX == "questionnaire-pitr"
         assert settings.CLONE_NAME_PREFIX == "pitr"
@@ -68,7 +66,6 @@ def test_settings_reads_required_environment_variables() -> None:
     [
         "PROJECT_ID",
         "DEST_INSTANCE_NAME",
-        "DEST_DB_NAME",
         "RESTORE_GCS_BUCKET",
     ],
 )

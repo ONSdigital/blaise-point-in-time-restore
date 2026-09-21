@@ -17,7 +17,6 @@ class FakeSettings:
     PROJECT_ID = "project-1"
     DEST_INSTANCE_NAME = "project-1:region:dest"
     RESTORE_SOURCE_INSTANCE_NAME = "project-1:region:source"
-    DEST_DB_NAME = "blaise"
     RESTORE_GCS_BUCKET = "ons-blaise-v2-dev-backups"
     RESTORE_GCS_PREFIX = "questionnaire-pitr"
     CLONE_NAME_PREFIX = "pitr"
@@ -103,13 +102,16 @@ def test_run_restore_builds_request_and_calls_orchestrator() -> None:
         ),
         patch.object(
             main_module, "_get_orchestrator", return_value=mock_orchestrator
-        ),
+        ) as mock_get_orchestrator,
     ):
-        main_module.run_restore("LMS2601_KX2", "2026-07-08 14:30:00")
+        main_module.run_restore(
+            "LMS2601_KX2", "2026-07-08 14:30:00", database_name="blaise"
+        )
 
     request = mock_orchestrator.restore_questionnaire_from_point_in_time.call_args.args[
         0
     ]
+    mock_get_orchestrator.assert_called_once_with("blaise")
     assert request.questionnaire_name == "LMS2601_KX2"
     assert request.timestamp == parsed_ts
     assert request.source_instance_name == FakeSettings.RESTORE_SOURCE_INSTANCE_NAME
@@ -126,7 +128,12 @@ def test_restore_point_in_time_questionnaire_returns_400_for_missing_fields() ->
     main_module = _load_main_module()
     app = flask.Flask(__name__)
 
-    with app.test_request_context(json={}):
+    with app.test_request_context(
+        json={
+            "questionnaire_name": "LMS2601_KX2",
+            "timestamp": "2026-07-08 14:30:00",
+        }
+    ):
         response, status = main_module.restore_point_in_time_questionnaire(
             flask.request
         )
@@ -134,6 +141,9 @@ def test_restore_point_in_time_questionnaire_returns_400_for_missing_fields() ->
 
     assert status == http.HTTPStatus.BAD_REQUEST
     assert payload["error"]["code"] == "missing_parameters"
+    assert payload["error"]["details"] == (
+        "Expected questionnaire_name, timestamp, and database_name."
+    )
 
 
 def test_restore_point_in_time_questionnaire_returns_400_for_bad_timestamp() -> None:
@@ -142,7 +152,11 @@ def test_restore_point_in_time_questionnaire_returns_400_for_bad_timestamp() -> 
 
     with (
         app.test_request_context(
-            json={"questionnaire_name": "LMS2601_KX2", "timestamp": "bad-ts"}
+            json={
+                "questionnaire_name": "LMS2601_KX2",
+                "timestamp": "bad-ts",
+                "database_name": "blaise",
+            }
         ),
         patch.object(
             main_module, "run_restore", side_effect=ValueError("bad timestamp")
@@ -168,6 +182,7 @@ def test_restore_point_in_time_questionnaire_returns_500_for_unexpected_error() 
             json={
                 "questionnaire_name": "LMS2601_KX2",
                 "timestamp": "2026-07-08 14:30:00",
+                "database_name": "blaise",
             }
         ),
         patch.object(main_module, "run_restore", side_effect=RuntimeError("boom")),
@@ -192,11 +207,19 @@ def test_restore_point_in_time_questionnaire_returns_200_on_success() -> None:
             json={
                 "questionnaire_name": "LMS2601_KX2",
                 "timestamp": "2026-07-08 14:30:00",
+                "database_name": "blaise",
             }
         ),
         patch.object(main_module, "run_restore", return_value=None),
+        patch("main.uuid.uuid4", return_value="request-id-3"),
     ):
         body, status = main_module.restore_point_in_time_questionnaire(flask.request)
+        main_module.run_restore.assert_called_once_with(
+            "LMS2601_KX2",
+            "2026-07-08 14:30:00",
+            database_name="blaise",
+            request_id="request-id-3",
+        )
 
     assert status == http.HTTPStatus.OK
     assert body == "OK"

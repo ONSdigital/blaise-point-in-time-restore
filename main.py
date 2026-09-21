@@ -32,7 +32,7 @@ def _setup_cloud_logging() -> None:
 
 
 @cache
-def _get_orchestrator() -> PitrOrchestratorService:
+def _get_orchestrator(database_name: str) -> PitrOrchestratorService:
     _setup_cloud_logging()
     authorisation_service = AuthorisationService()
     clone_service = DatabaseCloneService(
@@ -44,7 +44,7 @@ def _get_orchestrator() -> PitrOrchestratorService:
     database_service = DatabaseService(
         authorisation_service=authorisation_service,
         project_id=Settings.PROJECT_ID,
-        database_name=Settings.DEST_DB_NAME,
+        database_name=database_name,
         export_bucket_name=Settings.RESTORE_GCS_BUCKET,
         export_prefix=Settings.RESTORE_GCS_PREFIX,
         operation_timeout_seconds=Settings.CLONE_OPERATION_TIMEOUT_SECONDS,
@@ -62,6 +62,7 @@ def _get_orchestrator() -> PitrOrchestratorService:
 def run_restore(
     questionnaire_name: str,
     restore_timestamp_input: str,
+    database_name: str,
     request_id: str | None = None,
 ) -> None:
     correlation_id = request_id or str(uuid.uuid4())
@@ -96,7 +97,9 @@ def run_restore(
         clone_instance_name,
     )
 
-    _get_orchestrator().restore_questionnaire_from_point_in_time(restore_request)
+    _get_orchestrator(database_name).restore_questionnaire_from_point_in_time(
+        restore_request
+    )
     LOGGER.info(
         (
             "Restore request finished; request_id=%s "
@@ -135,35 +138,46 @@ def restore_point_in_time_questionnaire(
     """Cloud Function HTTP entry point."""
     request_id = str(uuid.uuid4())
     data = request.get_json(silent=True) or {}
-    questionnaire_name = str(data.get("questionnaire_name", ""))
-    timestamp_str = str(data.get("timestamp", ""))
-    if not questionnaire_name or not timestamp_str:
+    questionnaire_name = str(data.get("questionnaire_name", "")).strip()
+    timestamp_str = str(data.get("timestamp", "")).strip()
+    database_name = str(data.get("database_name", "")).strip()
+    if not questionnaire_name or not timestamp_str or not database_name:
         LOGGER.error(
             (
                 "Restore request rejected; request_id=%s reason=missing_parameters "
-                "questionnaire_name=%r timestamp=%r"
+                "questionnaire_name=%r timestamp=%r database_name=%r"
             ),
             request_id,
             questionnaire_name,
             timestamp_str,
+            database_name,
         )
         return _json_error(
             code="missing_parameters",
             message="Missing required fields.",
-            details="Expected questionnaire_name and timestamp.",
+            details="Expected questionnaire_name, timestamp, and database_name.",
             status=400,
             request_id=request_id,
         )
 
     LOGGER.info(
-        "Restore request accepted; request_id=%s questionnaire=%s timestamp=%s",
+        (
+            "Restore request accepted; request_id=%s questionnaire=%s "
+            "timestamp=%s database_name=%s"
+        ),
         request_id,
         questionnaire_name,
         timestamp_str,
+        database_name,
     )
 
     try:
-        run_restore(questionnaire_name, timestamp_str, request_id=request_id)
+        run_restore(
+            questionnaire_name,
+            timestamp_str,
+            database_name=database_name,
+            request_id=request_id,
+        )
     except ValueError:
         LOGGER.warning(
             (
