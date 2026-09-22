@@ -1,14 +1,12 @@
-import atexit
 import logging
 import time
 import uuid
 from functools import cache
 
 import flask
-import google.cloud.logging
 
 from config import Settings, parse_uk_local_timestamp
-from services.authorisation_service import AuthorisationService
+from services.cloud_sql_admin_client import CloudSqlAdminClient
 from services.database_clone_service import DatabaseCloneService
 from services.database_restore_service import DatabaseRestoreService
 from services.database_service import DatabaseService
@@ -21,36 +19,22 @@ from services.pitr_orchestrator_service import (
 logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-@cache
-def _setup_cloud_logging() -> None:
-    try:
-        logging_client = google.cloud.logging.Client(project=Settings.PROJECT_ID)
-        logging_client.setup_logging()
-        atexit.register(logging_client.close)
-    except Exception:
-        LOGGER.exception("Cloud Logging setup failed; using standard logging")
-
 
 @cache
 def _get_orchestrator(database_name: str) -> PitrOrchestratorService:
-    _setup_cloud_logging()
-    authorisation_service = AuthorisationService()
-    clone_service = DatabaseCloneService(
-        authorisation_service=authorisation_service,
+    cloud_sql_client = CloudSqlAdminClient(
         project_id=Settings.PROJECT_ID,
         http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
         http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
     )
+    clone_service = DatabaseCloneService(cloud_sql_client=cloud_sql_client)
     database_service = DatabaseService(
-        authorisation_service=authorisation_service,
-        project_id=Settings.PROJECT_ID,
+        cloud_sql_client=cloud_sql_client,
         database_name=database_name,
         export_bucket_name=Settings.RESTORE_GCS_BUCKET,
         export_prefix=Settings.RESTORE_GCS_PREFIX,
         operation_timeout_seconds=Settings.CLONE_OPERATION_TIMEOUT_SECONDS,
         operation_poll_seconds=Settings.CLONE_OPERATION_POLL_SECONDS,
-        http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
-        http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
     )
     database_restore_service = DatabaseRestoreService(
         database_service=database_service,
