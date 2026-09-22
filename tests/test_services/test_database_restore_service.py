@@ -26,12 +26,12 @@ class TestRestoreFunctionality:
         destination_instance_name = "blaise-dev-test"
         expected_calls = [
             call(
-                f"{table_name}_DML",
+                f"{table_name}_Dml",
                 source_instance_name,
                 destination_instance_name,
             ),
             call(
-                f"{table_name}_FORM",
+                f"{table_name}_Form",
                 source_instance_name,
                 destination_instance_name,
             ),

@@ -33,8 +33,8 @@ Successful requests return HTTP `200`. Validation failures return HTTP `400`, an
 
 For the `blaise` database, `table_name` is treated as the base questionnaire table name and the following two tables are restored:
 
-- `<TABLE_NAME>_DML`
-- `<TABLE_NAME>_FORM`
+- `<TABLE_NAME>_Dml`
+- `<TABLE_NAME>_Form`
 
 For any other database, the exact table supplied in `table_name` is restored. The destination tables are restored from SQL export files generated from the clone.
 
@@ -106,7 +106,7 @@ The restore runs synchronously. Keep the Console request open until the function
 1. Validate and parse the request.
 2. Read the destination database name from the request and the remaining Cloud SQL configuration supplied by Terraform.
 3. Create a point-in-time clone.
-4. Resolve the requested table names. For `blaise`, append `_DML` and `_FORM`; otherwise use `table_name` unchanged.
+4. Resolve the requested table names. For `blaise`, append `_Dml` and `_Form`; otherwise use `table_name` unchanged.
 5. Export each resolved table from the clone to Cloud Storage and import it into the destination.
 6. Delete the temporary clone, including when a restore step fails.
 

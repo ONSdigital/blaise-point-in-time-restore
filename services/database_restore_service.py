@@ -27,7 +27,7 @@ class DatabaseRestoreService:
         )
 
         table_names = (
-            [f"{table_name}_DML", f"{table_name}_FORM"]
+            [f"{table_name}_Dml", f"{table_name}_Form"]
             if self._database_name.casefold() == "blaise"
             else [table_name]
         )
