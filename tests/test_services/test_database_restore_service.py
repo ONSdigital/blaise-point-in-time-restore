@@ -43,10 +43,6 @@ class TestRestoreFunctionality:
         )
 
         # assert
-        mock_database_service.ensure_bucket_permissions_for_instances.assert_called_once_with(
-            source_instance_name,
-            destination_instance_name,
-        )
         mock_database_service.copy_table_data.assert_has_calls(expected_calls)
 
     def test_restores_requested_table_for_non_blaise_database(
@@ -64,10 +60,6 @@ class TestRestoreFunctionality:
             table_name, source_instance_name, destination_instance_name
         )
 
-        mock_database_service.ensure_bucket_permissions_for_instances.assert_called_once_with(
-            source_instance_name,
-            destination_instance_name,
-        )
         mock_database_service.copy_table_data.assert_called_once_with(
             table_name,
             source_instance_name,
@@ -106,7 +98,6 @@ class TestRestoreFunctionality:
             )
 
         # assert
-        mock_database_service.ensure_bucket_permissions_for_instances.assert_not_called()
         mock_database_service.copy_table_data.assert_not_called()
 
     @pytest.mark.parametrize("source_instance_name", [None, "", " ", "   "])
@@ -141,7 +132,6 @@ class TestRestoreFunctionality:
             )
 
         # assert
-        mock_database_service.ensure_bucket_permissions_for_instances.assert_not_called()
         mock_database_service.copy_table_data.assert_not_called()
 
     @pytest.mark.parametrize("destination_instance_name", [None, "", " ", "   "])
@@ -176,5 +166,4 @@ class TestRestoreFunctionality:
             )
 
         # assert
-        mock_database_service.ensure_bucket_permissions_for_instances.assert_not_called()
         mock_database_service.copy_table_data.assert_not_called()

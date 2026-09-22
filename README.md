@@ -49,8 +49,8 @@ The infrastructure must provide:
 - A VPC connector with access to the Cloud SQL instance.
 - A timeout that accommodates the restore operation; 3600 seconds is recommended.
 - Authentication on the HTTP endpoint. Do not allow unauthenticated invocation.
-- Cloud SQL Admin and Logs Writer permissions for the runtime service account.
-- Cloud Storage access to the environment backup bucket for the runtime service account and the Cloud SQL instance service account.
+- Cloud SQL Admin permission for the runtime service account.
+- `roles/storage.objectAdmin` on the backup bucket for the project's Cloud SQL service agent. This access must be provisioned by Terraform before invoking the function.
 - Cloud Run Invoker permission for operators who invoke the second-generation function.
 
 The function uses Application Default Credentials from its runtime service account. Terraform must attach that service account to the function and provide the resource identifiers below as runtime environment variables. Do not pass access tokens, service-account keys, or other credentials through environment variables.

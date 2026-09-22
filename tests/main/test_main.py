@@ -35,19 +35,7 @@ def _load_main_module() -> ModuleType:
     sys.modules["config"] = cast(ModuleType, fake_config)
     sys.modules.pop("main", None)
 
-    with (
-        patch("google.cloud.logging.Client") as mock_logging_client,
-        patch(
-            "services.authorisation_service.google.auth.default",
-            return_value=(
-                SimpleNamespace(universe_domain="googleapis.com"),
-                "project-1",
-            ),
-        ),
-    ):
-        mock_client = Mock()
-        mock_logging_client.return_value = mock_client
-        return importlib.import_module("main")
+    return importlib.import_module("main")
 
 
 def test_json_error_includes_optional_fields() -> None:
@@ -108,9 +96,7 @@ def test_run_restore_builds_request_and_calls_orchestrator() -> None:
             "LMS2601_KX2", "2026-07-08 14:30:00", database_name="blaise"
         )
 
-    request = mock_orchestrator.restore_table_from_point_in_time.call_args.args[
-        0
-    ]
+    request = mock_orchestrator.restore_table_from_point_in_time.call_args.args[0]
     mock_get_orchestrator.assert_called_once_with("blaise")
     assert request.table_name == "LMS2601_KX2"
     assert request.timestamp == parsed_ts
@@ -134,9 +120,7 @@ def test_restore_table_from_point_in_time_returns_400_for_missing_fields() -> No
             "timestamp": "2026-07-08 14:30:00",
         }
     ):
-        response, status = main_module.restore_table_from_point_in_time(
-            flask.request
-        )
+        response, status = main_module.restore_table_from_point_in_time(flask.request)
         payload = response.get_json()
 
     assert status == http.HTTPStatus.BAD_REQUEST
@@ -181,9 +165,7 @@ def test_restore_table_from_point_in_time_returns_400_for_bad_timestamp() -> Non
         ),
         patch("main.uuid.uuid4", return_value="request-id-1"),
     ):
-        response, status = main_module.restore_table_from_point_in_time(
-            flask.request
-        )
+        response, status = main_module.restore_table_from_point_in_time(flask.request)
         payload = response.get_json()
 
     assert status == http.HTTPStatus.BAD_REQUEST
@@ -206,9 +188,7 @@ def test_restore_table_from_point_in_time_returns_500_for_unexpected_error() -> 
         patch.object(main_module, "run_restore", side_effect=RuntimeError("boom")),
         patch("main.uuid.uuid4", return_value="request-id-2"),
     ):
-        response, status = main_module.restore_table_from_point_in_time(
-            flask.request
-        )
+        response, status = main_module.restore_table_from_point_in_time(flask.request)
         payload = response.get_json()
 
     assert status == http.HTTPStatus.INTERNAL_SERVER_ERROR
@@ -241,33 +221,3 @@ def test_restore_table_from_point_in_time_returns_200_on_success() -> None:
 
     assert status == http.HTTPStatus.OK
     assert body == "OK"
-
-
-def test_main_import_falls_back_to_basic_logging_when_cloud_logging_init_fails() -> (
-    None
-):
-    fake_config = SimpleNamespace(
-        Settings=FakeSettings,
-        parse_uk_local_timestamp=_fake_parse_timestamp,
-    )
-
-    sys.modules["config"] = cast(ModuleType, fake_config)
-    sys.modules.pop("main", None)
-
-    with (
-        patch(
-            "google.cloud.logging.Client",
-            side_effect=RuntimeError("logging unavailable"),
-        ),
-        patch(
-            "services.authorisation_service.google.auth.default",
-            return_value=(
-                SimpleNamespace(universe_domain="googleapis.com"),
-                "project-1",
-            ),
-        ),
-        patch("logging.basicConfig") as mock_basic_config,
-    ):
-        importlib.import_module("main")
-
-    mock_basic_config.assert_called_once()
