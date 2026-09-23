@@ -47,6 +47,11 @@ class DatabaseRestoreService:
             len(table_names),
         )
 
+        self._database_service.ensure_bucket_permissions_for_instances(
+            source_instance,
+            destination_instance,
+        )
+
         for index, table_name in enumerate(table_names, start=1):
             table_started_at = time.monotonic()
             LOGGER.info(

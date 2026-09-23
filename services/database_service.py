@@ -10,6 +10,9 @@ from services.cloud_sql_admin_client import CloudSqlAdminClient
 
 LOGGER = logging.getLogger(__name__)
 HTTP_PRECONDITION_FAILED = 412
+HTTP_CONFLICT = 409
+_STORAGE_API_URL = "https://storage.googleapis.com/storage/v1"
+_IAM_POLICY_RETRY_COUNT = 3
 _EXPORT_PRECONDITION_RETRY_COUNT = 12
 _EXPORT_PRECONDITION_RETRY_DELAY_SECONDS = 5
 
@@ -220,6 +223,119 @@ class DatabaseService:
             )
 
         return f"gs://{self._export_bucket_name}/{object_name}"
+
+    def ensure_bucket_permissions_for_instances(
+        self, source_instance_name: str, destination_instance_name: str
+    ) -> None:
+        source_service_account = self.__get_instance_service_account(
+            source_instance_name
+        )
+        destination_service_account = self.__get_instance_service_account(
+            destination_instance_name
+        )
+
+        service_accounts = {
+            source_service_account,
+            destination_service_account,
+        }
+        for service_account in service_accounts:
+            if not service_account:
+                continue
+
+            self.__ensure_bucket_member_has_object_admin_role(
+                f"serviceAccount:{service_account}",
+            )
+
+    def __get_instance_service_account(self, instance_name: str) -> str:
+        response = self._cloud_sql_client.request(
+            method="get",
+            url=self._cloud_sql_client.instance_url(instance_name),
+        )
+        self._cloud_sql_client.raise_for_status_with_details(
+            response, "Cloud SQL get instance"
+        )
+        service_account = response.json().get("serviceAccountEmailAddress")
+        if not isinstance(service_account, str):
+            return ""
+
+        return service_account
+
+    def __ensure_bucket_member_has_object_admin_role(self, member: str) -> None:
+        bucket_iam_url = f"{_STORAGE_API_URL}/b/{self._export_bucket_name}/iam"
+        set_policy_response: requests.Response | None = None
+
+        for attempt in range(1, _IAM_POLICY_RETRY_COUNT + 1):
+            get_policy_response = self._cloud_sql_client.request(
+                method="get",
+                url=bucket_iam_url,
+                params={"optionsRequestedPolicyVersion": 3},
+            )
+            self._cloud_sql_client.raise_for_status_with_details(
+                get_policy_response, "Cloud Storage get bucket IAM"
+            )
+            policy = dict(get_policy_response.json())
+            bindings = policy.get("bindings", [])
+            if not isinstance(bindings, list):
+                bindings = []
+
+            if self.__has_unconditional_member(bindings, member):
+                return
+
+            bindings.append(
+                {
+                    "role": "roles/storage.objectAdmin",
+                    "members": [member],
+                }
+            )
+            set_policy_payload: dict[str, Any] = {
+                "bindings": bindings,
+                "version": max(int(policy.get("version", 1)), 3),
+            }
+            for field in ("etag", "auditConfigs"):
+                if field in policy:
+                    set_policy_payload[field] = policy[field]
+
+            set_policy_response = self._cloud_sql_client.request(
+                method="put",
+                url=bucket_iam_url,
+                json=set_policy_payload,
+            )
+            if set_policy_response.status_code not in {
+                HTTP_CONFLICT,
+                HTTP_PRECONDITION_FAILED,
+            }:
+                self._cloud_sql_client.raise_for_status_with_details(
+                    set_policy_response, "Cloud Storage set bucket IAM"
+                )
+                return
+
+            LOGGER.warning(
+                (
+                    "Cloud Storage IAM policy changed concurrently; retrying; "
+                    "bucket=%s member=%s attempt=%s/%s"
+                ),
+                self._export_bucket_name,
+                member,
+                attempt,
+                _IAM_POLICY_RETRY_COUNT,
+            )
+
+        if set_policy_response is None:
+            raise RuntimeError("Cloud Storage IAM policy update did not run")
+
+        self._cloud_sql_client.raise_for_status_with_details(
+            set_policy_response, "Cloud Storage set bucket IAM"
+        )
+
+    @staticmethod
+    def __has_unconditional_member(bindings: list[Any], member: str) -> bool:
+        return any(
+            isinstance(binding, dict)
+            and binding.get("role") == "roles/storage.objectAdmin"
+            and "condition" not in binding
+            and member in binding.get("members", [])
+            for binding in bindings
+        )
 
     def __create_export_request_body(
         self, table_name: str, export_uri: str

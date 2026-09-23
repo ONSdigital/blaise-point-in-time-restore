@@ -50,10 +50,12 @@ The infrastructure must provide:
 - A timeout that accommodates the restore operation; 3600 seconds is recommended.
 - Authentication on the HTTP endpoint. Do not allow unauthenticated invocation.
 - Cloud SQL Admin permission for the runtime service account.
-- `roles/storage.objectAdmin` on the backup bucket for the project's Cloud SQL service agent. This access must be provisioned by Terraform before invoking the function.
+- Permission for the runtime service account to get and set the backup bucket IAM policy. `roles/storage.admin` may be used, or a custom role containing `storage.buckets.getIamPolicy` and `storage.buckets.setIamPolicy`.
 - Cloud Run Invoker permission for operators who invoke the second-generation function.
 
 The function uses Application Default Credentials from its runtime service account. Terraform must attach that service account to the function and provide the resource identifiers below as runtime environment variables. Do not pass access tokens, service-account keys, or other credentials through environment variables.
+
+Before each table restore, the function reads the service accounts of the source and destination Cloud SQL instances and ensures they have `roles/storage.objectAdmin` on the backup bucket. This is required because the point-in-time clone is created at runtime and its Cloud SQL service account must be allowed to write the export file. The IAM policy update preserves existing bindings and retries concurrent policy changes.
 
 ## Runtime Configuration
 
