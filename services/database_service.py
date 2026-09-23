@@ -107,6 +107,9 @@ class DatabaseService:
             if response.status_code != HTTP_PRECONDITION_FAILED:
                 break
 
+            if self.__is_bucket_permission_error(response):
+                break
+
             if attempt == _EXPORT_PRECONDITION_RETRY_COUNT:
                 break
 
@@ -135,6 +138,24 @@ class DatabaseService:
             )
 
         return str(operation_name)
+
+    @staticmethod
+    def __is_bucket_permission_error(response: requests.Response) -> bool:
+        try:
+            error = response.json().get("error", {})
+        except requests.JSONDecodeError:
+            return False
+
+        if not isinstance(error, dict):
+            return False
+
+        message = str(error.get("message", "")).casefold()
+        errors = error.get("errors", [])
+        has_not_authorized_reason = isinstance(errors, list) and any(
+            isinstance(item, dict) and item.get("reason") == "notAuthorized"
+            for item in errors
+        )
+        return has_not_authorized_reason or "required permissions" in message
 
     def __import_table_from_gcs(
         self, destination_instance_name: str, export_uri: str

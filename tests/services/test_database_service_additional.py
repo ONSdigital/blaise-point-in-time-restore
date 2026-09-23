@@ -100,6 +100,33 @@ def test_copy_table_data_retries_export_when_precondition_fails() -> None:
     mock_sleep.assert_called_once_with(5)
 
 
+def test_copy_table_data_does_not_retry_bucket_permission_failure() -> None:
+    service, client = _build_service()
+    permission_response = Mock(status_code=412, ok=False)
+    permission_response.json.return_value = {
+        "error": {
+            "message": (
+                "The service account does not have the required permissions "
+                "for the bucket."
+            ),
+            "errors": [{"reason": "notAuthorized"}],
+        }
+    }
+    client.request.return_value = permission_response
+    client.raise_for_status_with_details.side_effect = PermissionError(
+        "bucket permission denied"
+    )
+
+    with (
+        patch("services.database_service.time.sleep") as mock_sleep,
+        pytest.raises(PermissionError, match="bucket permission denied"),
+    ):
+        service.copy_table_data("TABLE_DML", "source", "dest")
+
+    client.request.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
 def test_wait_for_operation_uses_configured_values() -> None:
     service, client = _build_service()
     client.wait_for_operation.return_value = {"status": "DONE"}
