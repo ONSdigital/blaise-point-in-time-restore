@@ -104,6 +104,19 @@ class DatabaseService:
                 url=export_url,
                 json=self.__create_export_request_body(table_name, export_uri),
             )
+            if response.status_code == HTTP_PRECONDITION_FAILED:
+                LOGGER.error(
+                    (
+                        "Cloud SQL export precondition failed; table=%s source=%s "
+                        "uri=%s attempt=%s/%s response=%s"
+                    ),
+                    table_name,
+                    source_instance_name,
+                    export_uri,
+                    attempt,
+                    _EXPORT_PRECONDITION_RETRY_COUNT,
+                    response.text,
+                )
             if response.status_code != HTTP_PRECONDITION_FAILED:
                 break
 
