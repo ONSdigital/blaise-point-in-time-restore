@@ -16,7 +16,8 @@ from services.pitr_orchestrator_service import (
     build_clone_instance_name,
 )
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, force=True)
+logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
 

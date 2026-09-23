@@ -3,6 +3,7 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
+
 from services.database_service import DatabaseService
 
 _EXPECTED_REQUEST_COUNT = 3
