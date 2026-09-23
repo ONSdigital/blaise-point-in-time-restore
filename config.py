@@ -33,6 +33,7 @@ def discover_project_id() -> str:
         if project_id:
             return str(project_id)
     except Exception:
+        # Fall back to the gcloud CLI if application default credentials fail.
         pass
 
     try:
@@ -46,6 +47,7 @@ def discover_project_id() -> str:
         if project_id and project_id != "(unset)":
             return project_id
     except Exception:
+        # The error is reported by the explicit exit message below.
         pass
 
     sys.exit(
@@ -62,6 +64,7 @@ def _discover_access_token() -> str:
         if token:
             return token
     except Exception:
+        # Fall back to the gcloud CLI if application default credentials fail.
         pass
 
     try:
@@ -75,6 +78,7 @@ def _discover_access_token() -> str:
         if token:
             return token
     except Exception:
+        # The error is reported by the explicit exit message below.
         pass
 
     sys.exit(
@@ -293,6 +297,7 @@ def discover_database_password(project_id: str) -> str:
         if password_value:
             return password_value
     except Exception:
+        # Fall back to the gcloud CLI if Secret Manager is unavailable.
         pass
 
     try:
@@ -314,6 +319,7 @@ def discover_database_password(project_id: str) -> str:
         if password_value:
             return password_value
     except Exception:
+        # The error is reported by the explicit exit message below.
         pass
 
     sys.exit(
