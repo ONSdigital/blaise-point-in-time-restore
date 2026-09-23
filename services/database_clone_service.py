@@ -29,6 +29,12 @@ class DatabaseCloneService:
             url=f"{clone_api_url}/clone",
             json=self.__create_clone_request_body(database_clone_model),
         )
+        if not response.ok:
+            LOGGER.error(
+                "Cloud SQL clone request failed; status_code=%s response=%s",
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
 
         response_body = response.json()
