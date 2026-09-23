@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+
 def parse_uk_local_timestamp(value: str) -> datetime:
     cleaned = value.strip()
     normalized = cleaned.replace("T", " ")
@@ -39,7 +40,7 @@ class _SettingsMeta(type):
 
 
 class Settings(metaclass=_SettingsMeta):
-    RESTORE_GCS_PREFIX = "questionnaire-pitr"
+    RESTORE_GCS_PREFIX = "database-table-pitr"
 
     CLONE_NAME_PREFIX = "pitr"
     CLONE_OPERATION_POLL_SECONDS = 5

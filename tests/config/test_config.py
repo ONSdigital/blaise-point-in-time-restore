@@ -48,7 +48,7 @@ def test_settings_reads_required_environment_variables() -> None:
         assert settings.DEST_INSTANCE_NAME == environment["DEST_INSTANCE_NAME"]
         assert settings.RESTORE_SOURCE_INSTANCE_NAME == settings.DEST_INSTANCE_NAME
         assert settings.RESTORE_GCS_BUCKET == environment["RESTORE_GCS_BUCKET"]
-        assert settings.RESTORE_GCS_PREFIX == "questionnaire-pitr"
+        assert settings.RESTORE_GCS_PREFIX == "database-table-pitr"
         assert settings.CLONE_NAME_PREFIX == "pitr"
         assert settings.CLONE_OPERATION_POLL_SECONDS == _EXPECTED_POLL_SECONDS
         assert settings.CLONE_OPERATION_TIMEOUT_SECONDS == _EXPECTED_TIMEOUT_SECONDS
@@ -88,4 +88,4 @@ def test_settings_reads_environment_lazily() -> None:
     config_module = _load_config_module()
 
     with patch.dict("os.environ", {}, clear=True):
-        assert config_module.Settings.RESTORE_GCS_PREFIX == "questionnaire-pitr"
+        assert config_module.Settings.RESTORE_GCS_PREFIX == "database-table-pitr"
