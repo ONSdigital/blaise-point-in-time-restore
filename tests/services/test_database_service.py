@@ -3,7 +3,6 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
-
 from services.database_service import DatabaseService
 
 _EXPECTED_REQUEST_COUNT = 3
@@ -31,7 +30,7 @@ def _build_service() -> tuple[DatabaseService, Mock]:
             cloud_sql_client=client,
             database_name="blaise",
             export_bucket_name="ons-blaise-v2-dev-backups",
-            export_prefix="questionnaire-pitr",
+            export_prefix="database-table-pitr",
             operation_timeout_seconds=60,
             operation_poll_seconds=1,
         ),
@@ -62,9 +61,7 @@ def test_copy_table_data_exports_then_imports_using_same_gcs_uri() -> None:
     assert first_call.kwargs["url"].endswith("/instances/clone/export")
     assert second_call.kwargs["url"].endswith("/instances/dest/import")
     export_uri = first_call.kwargs["json"]["exportContext"]["uri"]
-    assert export_uri.startswith(
-        "gs://ons-blaise-v2-dev-backups/questionnaire-pitr/"
-    )
+    assert export_uri.startswith("gs://ons-blaise-v2-dev-backups/database-table-pitr/")
     assert second_call.kwargs["json"]["importContext"]["uri"] == export_uri
     assert client.wait_for_operation.call_args_list == [
         call(
@@ -202,15 +199,12 @@ def test_ensure_bucket_permissions_adds_runtime_instance_accounts() -> None:
         if call.kwargs["url"].endswith("/b/ons-blaise-v2-dev-backups/iam")
     ]
     assert len(iam_calls) == _EXPECTED_IAM_CALL_COUNT
-    assert iam_calls[0].kwargs["params"] == {
-        "optionsRequestedPolicyVersion": 3
-    }
+    assert iam_calls[0].kwargs["params"] == {"optionsRequestedPolicyVersion": 3}
     set_policy_payloads = [
         call.kwargs["json"] for call in iam_calls if "json" in call.kwargs
     ]
     assert all(
-        payload["version"] == _IAM_POLICY_VERSION
-        for payload in set_policy_payloads
+        payload["version"] == _IAM_POLICY_VERSION for payload in set_policy_payloads
     )
     assert all(payload["etag"] == "etag-1" for payload in set_policy_payloads)
     policy_members = {

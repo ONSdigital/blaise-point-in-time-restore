@@ -318,9 +318,7 @@ class PitrOrchestratorService:
         return f"{truncated_base}-{retry_suffix}"
 
 
-def build_clone_instance_name(
-    prefix: str, table_name: str, timestamp: datetime
-) -> str:
+def build_clone_instance_name(prefix: str, table_name: str, timestamp: datetime) -> str:
     timestamp_utc = timestamp.astimezone(UTC)
     compact_timestamp = timestamp_utc.strftime("%Y%m%d%H%M%S")
     safe_table_name = "".join(

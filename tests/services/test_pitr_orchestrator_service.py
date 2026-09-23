@@ -188,9 +188,7 @@ def test_restore_failure_is_reraised_even_if_clone_cleanup_also_fails(
     restore_service: Mock,
     pitr_request: PitrRequest,
 ) -> None:
-    restore_service.restore_table_data.side_effect = RuntimeError(
-        "restore failed"
-    )
+    restore_service.restore_table_data.side_effect = RuntimeError("restore failed")
     clone_service.delete_clone.side_effect = RuntimeError("cleanup failed")
 
     service = PitrOrchestratorService(

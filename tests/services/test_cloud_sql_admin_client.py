@@ -145,6 +145,4 @@ def test_builds_instance_and_operation_urls(client: CloudSqlAdminClient) -> None
     assert client.instance_url("project:region:instance-1").endswith(
         "/projects/project-1/instances/instance-1"
     )
-    assert client.operation_url("op-1").endswith(
-        "/projects/project-1/operations/op-1"
-    )
+    assert client.operation_url("op-1").endswith("/projects/project-1/operations/op-1")

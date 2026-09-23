@@ -85,14 +85,9 @@ def run_restore(
         clone_instance_name,
     )
 
-    _get_orchestrator(database_name).restore_table_from_point_in_time(
-        restore_request
-    )
+    _get_orchestrator(database_name).restore_table_from_point_in_time(restore_request)
     LOGGER.info(
-        (
-            "Restore request finished; request_id=%s "
-            "table=%s duration_seconds=%.2f"
-        ),
+        ("Restore request finished; request_id=%s table=%s duration_seconds=%.2f"),
         correlation_id,
         table_name,
         time.monotonic() - started_at,

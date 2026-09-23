@@ -18,7 +18,7 @@ class FakeSettings:
     DEST_INSTANCE_NAME = "project-1:region:dest"
     RESTORE_SOURCE_INSTANCE_NAME = "project-1:region:source"
     RESTORE_GCS_BUCKET = "ons-blaise-v2-dev-backups"
-    RESTORE_GCS_PREFIX = "questionnaire-pitr"
+    RESTORE_GCS_PREFIX = "database-table-pitr"
     CLONE_NAME_PREFIX = "pitr"
     CLONE_OPERATION_POLL_SECONDS = 5
     CLONE_OPERATION_TIMEOUT_SECONDS = 1800

@@ -44,10 +44,10 @@ def test_settings_reads_required_environment_variables() -> None:
     with patch.dict("os.environ", environment, clear=True):
         settings = config_module.Settings
 
-        assert settings.PROJECT_ID == environment["PROJECT_ID"]
-        assert settings.DEST_INSTANCE_NAME == environment["DEST_INSTANCE_NAME"]
+        assert environment["PROJECT_ID"] == settings.PROJECT_ID
+        assert environment["DEST_INSTANCE_NAME"] == settings.DEST_INSTANCE_NAME
         assert settings.RESTORE_SOURCE_INSTANCE_NAME == settings.DEST_INSTANCE_NAME
-        assert settings.RESTORE_GCS_BUCKET == environment["RESTORE_GCS_BUCKET"]
+        assert environment["RESTORE_GCS_BUCKET"] == settings.RESTORE_GCS_BUCKET
         assert settings.RESTORE_GCS_PREFIX == "database-table-pitr"
         assert settings.CLONE_NAME_PREFIX == "pitr"
         assert settings.CLONE_OPERATION_POLL_SECONDS == _EXPECTED_POLL_SECONDS

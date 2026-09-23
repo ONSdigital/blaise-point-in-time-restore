@@ -11,7 +11,7 @@ def service_under_test() -> DatabaseService:
         cloud_sql_client=Mock(),
         database_name="blaise",
         export_bucket_name="ons-blaise-v2-dev-backups",
-        export_prefix="questionnaire-pitr",
+        export_prefix="database-table-pitr",
         operation_timeout_seconds=120,
         operation_poll_seconds=2,
     )
