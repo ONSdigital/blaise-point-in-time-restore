@@ -25,7 +25,9 @@ The function expects this request body:
 
 `timestamp` is parsed as UK local time (`Europe/London`) when no timezone offset is supplied. An ISO 8601 timestamp with an explicit offset is also accepted.
 
-`table_name` identifies the table to restore. `database_name` identifies the source and destination database containing that table.
+Google permits PITR timestamps up to 7 days old for non-production environments using the MySQL Enterprise edition. Production uses MySQL Enterprise Plus, which permits PITR timestamps up to 35 days old.
+
+`table_name` identifies the table to restore. `database_name` identifies the database containing that table. Both values are case-sensitive and must use the exact casing of the table and database on the active Cloud SQL instance.
 
 Successful requests return HTTP `200`. Validation failures return HTTP `400`, and restore failures return HTTP `500` with a request ID that can be matched to Cloud Logging entries.
 
@@ -102,6 +104,8 @@ After Terraform has deployed the function:
 ```
 
 The restore runs synchronously. Keep the Console request open until the function responds, and use the returned request ID to locate errors in Cloud Logging.
+
+Enter `table_name` and `database_name` using the exact casing used by the active Cloud SQL instance; both identifiers are case-sensitive.
 
 ## Restore Flow
 
