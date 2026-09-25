@@ -1,13 +1,12 @@
-import atexit
 import logging
 import time
 import uuid
+from functools import cache
 
 import flask
-import google.cloud.logging
 
 from config import Settings, parse_uk_local_timestamp
-from services.authorisation_service import AuthorisationService
+from services.cloud_sql_admin_client import CloudSqlAdminClient
 from services.database_clone_service import DatabaseCloneService
 from services.database_restore_service import DatabaseRestoreService
 from services.database_service import DatabaseService
@@ -17,42 +16,41 @@ from services.pitr_orchestrator_service import (
     build_clone_instance_name,
 )
 
-try:
-    _logging_client = google.cloud.logging.Client(project=Settings.DEST_PROJECT_ID)
-    _logging_client.setup_logging()
-    atexit.register(_logging_client.close)
-except Exception:
-    logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, force=True)
+logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
-authorisation_service = AuthorisationService()
-clone_service = DatabaseCloneService(
-    authorisation_service=authorisation_service,
-    project_id=Settings.DEST_PROJECT_ID,
-    http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
-    http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
-)
-database_service = DatabaseService(
-    authorisation_service=authorisation_service,
-    project_id=Settings.DEST_PROJECT_ID,
-    database_name=Settings.DEST_DB_NAME,
-    export_bucket_name=Settings.RESTORE_GCS_BUCKET,
-    export_prefix=Settings.RESTORE_GCS_PREFIX,
-    operation_timeout_seconds=Settings.CLONE_OPERATION_TIMEOUT_SECONDS,
-    operation_poll_seconds=Settings.CLONE_OPERATION_POLL_SECONDS,
-    http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
-    http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
-)
-database_restore_service = DatabaseRestoreService(database_service)
-orchestrator = PitrOrchestratorService(
-    clone_service=clone_service,
-    restore_service=database_restore_service,
-)
+
+@cache
+def _get_orchestrator(database_name: str) -> PitrOrchestratorService:
+    cloud_sql_client = CloudSqlAdminClient(
+        project_id=Settings.PROJECT_ID,
+        http_connect_timeout_seconds=Settings.CLONE_HTTP_CONNECT_TIMEOUT_SECONDS,
+        http_read_timeout_seconds=Settings.CLONE_HTTP_READ_TIMEOUT_SECONDS,
+    )
+    clone_service = DatabaseCloneService(cloud_sql_client=cloud_sql_client)
+    database_service = DatabaseService(
+        cloud_sql_client=cloud_sql_client,
+        database_name=database_name,
+        export_bucket_name=Settings.RESTORE_GCS_BUCKET,
+        export_prefix=Settings.RESTORE_GCS_PREFIX,
+        operation_timeout_seconds=Settings.CLONE_OPERATION_TIMEOUT_SECONDS,
+        operation_poll_seconds=Settings.CLONE_OPERATION_POLL_SECONDS,
+    )
+    database_restore_service = DatabaseRestoreService(
+        database_service=database_service,
+        database_name=database_name,
+    )
+    return PitrOrchestratorService(
+        clone_service=clone_service,
+        restore_service=database_restore_service,
+    )
 
 
 def run_restore(
-    questionnaire_name: str,
+    table_name: str,
     restore_timestamp_input: str,
+    database_name: str,
     request_id: str | None = None,
 ) -> None:
     correlation_id = request_id or str(uuid.uuid4())
@@ -61,13 +59,13 @@ def run_restore(
 
     clone_instance_name = build_clone_instance_name(
         prefix=Settings.CLONE_NAME_PREFIX,
-        questionnaire_name=questionnaire_name,
+        table_name=table_name,
         timestamp=restore_timestamp,
     )
 
     restore_request = PitrRequest(
         request_id=correlation_id,
-        questionnaire_name=questionnaire_name,
+        table_name=table_name,
         timestamp=restore_timestamp,
         source_instance_name=Settings.RESTORE_SOURCE_INSTANCE_NAME,
         destination_instance_name=Settings.DEST_INSTANCE_NAME,
@@ -79,22 +77,19 @@ def run_restore(
     LOGGER.info(
         (
             "Restore request parsed; request_id=%s "
-            "questionnaire=%s uk_local_timestamp=%s clone=%s"
+            "table=%s uk_local_timestamp=%s clone=%s"
         ),
         correlation_id,
-        questionnaire_name,
+        table_name,
         restore_timestamp_input,
         clone_instance_name,
     )
 
-    orchestrator.restore_questionnaire_from_point_in_time(restore_request)
+    _get_orchestrator(database_name).restore_table_from_point_in_time(restore_request)
     LOGGER.info(
-        (
-            "Restore request finished; request_id=%s "
-            "questionnaire=%s duration_seconds=%.2f"
-        ),
+        ("Restore request finished; request_id=%s table=%s duration_seconds=%.2f"),
         correlation_id,
-        questionnaire_name,
+        table_name,
         time.monotonic() - started_at,
     )
 
@@ -120,47 +115,60 @@ def _json_error(
     return flask.jsonify(body), status
 
 
-def restore_questionnaire(request: flask.Request) -> tuple[flask.Response | str, int]:
+def restore_table_from_point_in_time(
+    request: flask.Request,
+) -> tuple[flask.Response | str, int]:
     """Cloud Function HTTP entry point."""
     request_id = str(uuid.uuid4())
     data = request.get_json(silent=True) or {}
-    questionnaire_name = str(data.get("questionnaire_name", ""))
-    timestamp_str = str(data.get("timestamp", ""))
-    if not questionnaire_name or not timestamp_str:
+    table_name = str(data.get("table_name", "")).strip()
+    timestamp_str = str(data.get("timestamp", "")).strip()
+    database_name = str(data.get("database_name", "")).strip()
+    if not table_name or not timestamp_str or not database_name:
         LOGGER.error(
             (
                 "Restore request rejected; request_id=%s reason=missing_parameters "
-                "questionnaire_name=%r timestamp=%r"
+                "table_name=%r timestamp=%r database_name=%r"
             ),
             request_id,
-            questionnaire_name,
+            table_name,
             timestamp_str,
+            database_name,
         )
         return _json_error(
             code="missing_parameters",
             message="Missing required fields.",
-            details="Expected questionnaire_name and timestamp.",
+            details="Expected table_name, timestamp, and database_name.",
             status=400,
             request_id=request_id,
         )
 
     LOGGER.info(
-        "Restore request accepted; request_id=%s questionnaire=%s timestamp=%s",
+        (
+            "Restore request accepted; request_id=%s table=%s "
+            "timestamp=%s database_name=%s"
+        ),
         request_id,
-        questionnaire_name,
+        table_name,
         timestamp_str,
+        database_name,
     )
 
     try:
-        run_restore(questionnaire_name, timestamp_str, request_id=request_id)
+        run_restore(
+            table_name,
+            timestamp_str,
+            database_name=database_name,
+            request_id=request_id,
+        )
     except ValueError:
         LOGGER.warning(
             (
                 "Restore request rejected; request_id=%s reason=invalid_timestamp "
-                "questionnaire=%s timestamp=%s"
+                "table=%s timestamp=%s"
             ),
             request_id,
-            questionnaire_name,
+            table_name,
             timestamp_str,
         )
         return _json_error(
@@ -175,9 +183,9 @@ def restore_questionnaire(request: flask.Request) -> tuple[flask.Response | str,
         )
     except Exception:
         LOGGER.exception(
-            "Restore execution failed; request_id=%s questionnaire=%s timestamp=%s",
+            "Restore execution failed; request_id=%s table=%s timestamp=%s",
             request_id,
-            questionnaire_name,
+            table_name,
             timestamp_str,
         )
         return _json_error(
@@ -189,8 +197,8 @@ def restore_questionnaire(request: flask.Request) -> tuple[flask.Response | str,
         )
 
     LOGGER.info(
-        "Restore request completed successfully; request_id=%s questionnaire=%s",
+        "Restore request completed successfully; request_id=%s table=%s",
         request_id,
-        questionnaire_name,
+        table_name,
     )
     return "OK", 200

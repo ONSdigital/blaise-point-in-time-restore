@@ -1,45 +1,40 @@
 import logging
-import time
 from datetime import UTC
 from typing import Any
 
-import requests
-
 from models.database_clone_model import DatabaseCloneModel
-from services.authorisation_service import AuthorisationService
+from services.cloud_sql_admin_client import CloudSqlAdminClient
 
 LOGGER = logging.getLogger(__name__)
 HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
-HTTP_UNAUTHORIZED = 401
 
 
 class DatabaseCloneService:
     def __init__(
         self,
-        authorisation_service: AuthorisationService,
-        project_id: str,
-        sql_admin_api_url: str = "https://sqladmin.googleapis.com/sql/v1beta4",
-        http_connect_timeout_seconds: float = 5.0,
-        http_read_timeout_seconds: float = 30.0,
+        cloud_sql_client: CloudSqlAdminClient,
     ):
-        self._authorisation_service = authorisation_service
-        self._project_id = project_id
-        self._sql_admin_api_url = sql_admin_api_url.rstrip("/")
-        self._http_timeout = (
-            http_connect_timeout_seconds,
-            http_read_timeout_seconds,
-        )
+        self._cloud_sql_client = cloud_sql_client
+
+    def close(self) -> None:
+        self._cloud_sql_client.close()
 
     def create_clone(self, database_clone_model: DatabaseCloneModel) -> str:
-        clone_api_url = self.__get_instance_api_url(
+        clone_api_url = self._cloud_sql_client.instance_url(
             database_clone_model.source_instance_name
         )
-        response = self.__request_with_authorisation_retry(
+        response = self._cloud_sql_client.request(
             method="post",
             url=f"{clone_api_url}/clone",
             json=self.__create_clone_request_body(database_clone_model),
         )
+        if not response.ok:
+            LOGGER.error(
+                "Cloud SQL clone request failed; status_code=%s response=%s",
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
 
         response_body = response.json()
@@ -60,9 +55,9 @@ class DatabaseCloneService:
         return str(operation_name)
 
     def delete_clone(self, instance_name: str) -> str:
-        response = self.__request_with_authorisation_retry(
+        response = self._cloud_sql_client.request(
             method="delete",
-            url=self.__get_instance_api_url(instance_name),
+            url=self._cloud_sql_client.instance_url(instance_name),
         )
 
         if (
@@ -72,10 +67,10 @@ class DatabaseCloneService:
             LOGGER.info(
                 "Delete blocked by deletion protection; instance=%s", instance_name
             )
-            self.__disable_deletion_protection(instance_name)
-            response = self.__request_with_authorisation_retry(
+            self.disable_deletion_protection(instance_name)
+            response = self._cloud_sql_client.request(
                 method="delete",
-                url=self.__get_instance_api_url(instance_name),
+                url=self._cloud_sql_client.instance_url(instance_name),
             )
 
         response.raise_for_status()
@@ -96,9 +91,9 @@ class DatabaseCloneService:
         return str(operation_name)
 
     def get_instance(self, instance_name: str) -> dict[str, Any]:
-        response = self.__request_with_authorisation_retry(
+        response = self._cloud_sql_client.request(
             method="get",
-            url=self.__get_instance_api_url(instance_name),
+            url=self._cloud_sql_client.instance_url(instance_name),
         )
         response.raise_for_status()
 
@@ -108,9 +103,9 @@ class DatabaseCloneService:
         return dict(instance)
 
     def instance_exists(self, instance_name: str) -> bool:
-        response = self.__request_with_authorisation_retry(
+        response = self._cloud_sql_client.request(
             method="get",
-            url=self.__get_instance_api_url(instance_name),
+            url=self._cloud_sql_client.instance_url(instance_name),
         )
         if response.status_code == HTTP_NOT_FOUND:
             LOGGER.info("Cloud SQL instance not found; instance=%s", instance_name)
@@ -126,81 +121,19 @@ class DatabaseCloneService:
         timeout_seconds: int,
         poll_interval_seconds: int = 5,
     ) -> dict[str, Any]:
-        deadline = time.monotonic() + timeout_seconds
-        started_at = time.monotonic()
-        last_status = "UNKNOWN"
-
-        LOGGER.info(
-            (
-                "Waiting for Cloud SQL operation; operation=%s timeout_seconds=%s "
-                "poll_interval_seconds=%s"
-            ),
-            operation_name,
-            timeout_seconds,
-            poll_interval_seconds,
+        return self._cloud_sql_client.wait_for_operation(
+            operation_name=operation_name,
+            timeout_seconds=timeout_seconds,
+            poll_interval_seconds=poll_interval_seconds,
         )
 
-        while True:
-            response = self.__request_with_authorisation_retry(
-                method="get",
-                url=self.__get_operation_api_url(operation_name),
-            )
-            response.raise_for_status()
-            operation = dict(response.json())
-            status = str(operation.get("status", "UNKNOWN"))
-
-            if status != last_status:
-                LOGGER.info(
-                    (
-                        "Cloud SQL operation status changed; operation=%s "
-                        "status=%s elapsed_seconds=%.2f"
-                    ),
-                    operation_name,
-                    status,
-                    time.monotonic() - started_at,
-                )
-                last_status = status
-
-            if status == "DONE":
-                operation_error = operation.get("error")
-                if operation_error:
-                    LOGGER.error(
-                        "Cloud SQL operation failed; operation=%s error=%s",
-                        operation_name,
-                        operation_error,
-                    )
-                    raise RuntimeError(f"Cloud SQL operation failed: {operation_error}")
-
-                LOGGER.info(
-                    "Cloud SQL operation completed; operation=%s elapsed_seconds=%.2f",
-                    operation_name,
-                    time.monotonic() - started_at,
-                )
-                return operation
-
-            if time.monotonic() >= deadline:
-                LOGGER.error(
-                    (
-                        "Cloud SQL operation timed out; operation=%s "
-                        "last_status=%s timeout_seconds=%s"
-                    ),
-                    operation_name,
-                    status,
-                    timeout_seconds,
-                )
-                raise TimeoutError(
-                    f"Timed out waiting for Cloud SQL operation: {operation_name}"
-                )
-
-            time.sleep(poll_interval_seconds)
-
-    def __disable_deletion_protection(self, instance_name: str) -> None:
+    def disable_deletion_protection(self, instance_name: str) -> None:
         """Disable deletion protection, starting a STOPPED instance if required."""
         patch_body: dict[str, Any] = {"settings": {"deletionProtectionEnabled": False}}
 
-        response = self.__request_with_authorisation_retry(
+        response = self._cloud_sql_client.request(
             method="patch",
-            url=self.__get_instance_api_url(instance_name),
+            url=self._cloud_sql_client.instance_url(instance_name),
             json=patch_body,
         )
 
@@ -219,9 +152,9 @@ class DatabaseCloneService:
                 "deletionProtectionEnabled": False,
                 "activationPolicy": "ALWAYS",
             }
-            response = self.__request_with_authorisation_retry(
+            response = self._cloud_sql_client.request(
                 method="patch",
-                url=self.__get_instance_api_url(instance_name),
+                url=self._cloud_sql_client.instance_url(instance_name),
                 json=patch_body,
             )
 
@@ -234,55 +167,6 @@ class DatabaseCloneService:
                 patch_operation,
             )
             self.wait_for_operation(patch_operation, timeout_seconds=300)
-
-    def __create_authorisation_headers(self) -> dict[str, str]:
-        token = self._authorisation_service.get_credentials_token()
-
-        return {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-
-    def __request_with_authorisation_retry(
-        self, method: str, url: str, **kwargs: Any
-    ) -> requests.Response:
-        request_method = getattr(requests, method)
-        response = request_method(
-            url=url,
-            headers=self.__create_authorisation_headers(),
-            timeout=self._http_timeout,
-            **kwargs,
-        )
-        if response.status_code != HTTP_UNAUTHORIZED:
-            return response
-
-        LOGGER.warning(
-            "Unauthorized response from SQL Admin API; retrying once; url=%s",
-            url,
-        )
-        return request_method(
-            url=url,
-            headers=self.__create_authorisation_headers(),
-            timeout=self._http_timeout,
-            **kwargs,
-        )
-
-    def __get_instance_api_url(self, instance_name: str) -> str:
-        normalized_instance_name = self.__normalize_instance_name(instance_name)
-        return (
-            f"{self._sql_admin_api_url}/projects/{self._project_id}/instances/"
-            f"{normalized_instance_name}"
-        )
-
-    def __get_operation_api_url(self, operation_name: str) -> str:
-        return (
-            f"{self._sql_admin_api_url}/projects/{self._project_id}/operations/"
-            f"{operation_name}"
-        )
-
-    @staticmethod
-    def __normalize_instance_name(instance_identifier: str) -> str:
-        return instance_identifier.rsplit(":", maxsplit=1)[-1]
 
     @staticmethod
     def __create_clone_request_body(
