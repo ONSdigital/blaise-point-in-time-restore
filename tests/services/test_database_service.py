@@ -100,7 +100,9 @@ def test_copy_table_data_retries_export_when_precondition_fails() -> None:
     mock_sleep.assert_called_once_with(5)
 
 
-def test_copy_table_data_does_not_retry_bucket_permission_failure() -> None:
+def test_copy_table_data_does_not_retry_bucket_permission_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     service, client = _build_service()
     permission_response = Mock(status_code=412, ok=False)
     permission_response.json.return_value = {
@@ -125,6 +127,9 @@ def test_copy_table_data_does_not_retry_bucket_permission_failure() -> None:
 
     client.request.assert_called_once()
     mock_sleep.assert_not_called()
+    assert "Cloud SQL export failed due to bucket permissions; skipping retries" in (
+        caplog.text
+    )
 
 
 def test_wait_for_operation_uses_configured_values() -> None:

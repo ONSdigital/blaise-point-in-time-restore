@@ -124,6 +124,15 @@ class DatabaseService:
                 break
 
             if self.__is_bucket_permission_error(response):
+                LOGGER.error(
+                    (
+                        "Cloud SQL export failed due to bucket permissions; "
+                        "skipping retries; table=%s source=%s uri=%s"
+                    ),
+                    table_name,
+                    source_instance_name,
+                    export_uri,
+                )
                 break
 
             if attempt == _EXPORT_PRECONDITION_RETRY_COUNT:
