@@ -199,7 +199,7 @@ def test_restore_failure_is_reraised_even_if_clone_cleanup_also_fails(
         service.restore_table_from_point_in_time(pitr_request)
 
 
-def test_cleanup_failure_does_not_fail_a_successful_restore(
+def test_cleanup_failure_fails_a_successful_restore(
     clone_service: Mock,
     restore_service: Mock,
     pitr_request: PitrRequest,
@@ -211,7 +211,10 @@ def test_cleanup_failure_does_not_fail_a_successful_restore(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_table_from_point_in_time(pitr_request)
+    with pytest.raises(
+        RuntimeError, match="Temporary clone cleanup could not be confirmed"
+    ):
+        service.restore_table_from_point_in_time(pitr_request)
 
     clone_service.delete_clone.assert_called_once()
 
@@ -229,7 +232,10 @@ def test_cleanup_uses_request_retry_layer_when_clone_still_exists(
         clone_service=clone_service, restore_service=restore_service
     )
 
-    service.restore_table_from_point_in_time(pitr_request)
+    with pytest.raises(
+        RuntimeError, match="Temporary clone cleanup could not be confirmed"
+    ):
+        service.restore_table_from_point_in_time(pitr_request)
 
     clone_service.delete_clone.assert_called_once()
 

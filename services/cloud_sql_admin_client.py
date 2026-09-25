@@ -1,5 +1,6 @@
 import logging
 import random
+import threading
 import time
 from typing import Any
 
@@ -34,21 +35,29 @@ class CloudSqlAdminClient:
             http_connect_timeout_seconds,
             http_read_timeout_seconds,
         )
-        self._session = self.__create_session()
+        self._thread_local = threading.local()
+        self._thread_local.session = self.__create_session()
 
     def close(self) -> None:
-        self._session.close()
+        session = getattr(self._thread_local, "session", None)
+        if session is not None:
+            session.close()
+            del self._thread_local.session
 
     def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:
+        retryable = method.casefold() == "get"
         for attempt in range(_TRANSIENT_RETRY_COUNT + 1):
             try:
-                request_method = getattr(self._session, method)
+                request_method = getattr(self.__get_session(), method)
                 response = request_method(
                     url=url,
                     timeout=self._http_timeout,
                     **kwargs,
                 )
-                if response.status_code not in _TRANSIENT_HTTP_STATUS_CODES:
+                if (
+                    not retryable
+                    or response.status_code not in _TRANSIENT_HTTP_STATUS_CODES
+                ):
                     return response
 
                 if attempt == _TRANSIENT_RETRY_COUNT:
@@ -61,7 +70,7 @@ class CloudSqlAdminClient:
                     error=f"HTTP {response.status_code}",
                 )
             except (requests.ConnectionError, requests.Timeout) as error:
-                if attempt == _TRANSIENT_RETRY_COUNT:
+                if not retryable or attempt == _TRANSIENT_RETRY_COUNT:
                     raise
 
                 self.__reset_session()
@@ -155,9 +164,17 @@ class CloudSqlAdminClient:
     def __create_session(self) -> AuthorizedSession:
         return AuthorizedSession(self._credentials)
 
+    def __get_session(self) -> AuthorizedSession:
+        session = getattr(self._thread_local, "session", None)
+        if session is None:
+            session = self.__create_session()
+            self._thread_local.session = session
+        return session
+
     def __reset_session(self) -> None:
-        self._session.close()
-        self._session = self.__create_session()
+        session = self.__get_session()
+        session.close()
+        self._thread_local.session = self.__create_session()
 
     @staticmethod
     def __retry_delay_seconds(attempt: int) -> float:

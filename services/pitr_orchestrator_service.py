@@ -319,6 +319,9 @@ class PitrOrchestratorService:
             )
             if restore_error is not None:
                 return
+            raise RuntimeError(
+                f"Temporary clone cleanup could not be confirmed: {clone_instance_name}"
+            ) from cleanup_error
 
     @staticmethod
     def __build_retry_clone_name(base_name: str) -> str:

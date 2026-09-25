@@ -1,7 +1,7 @@
 import logging
 import time
 import uuid
-from functools import cache
+from functools import lru_cache
 
 import flask
 
@@ -19,9 +19,10 @@ from services.pitr_orchestrator_service import (
 logging.basicConfig(level=logging.INFO, force=True)
 logging.getLogger().setLevel(logging.INFO)
 LOGGER = logging.getLogger(__name__)
+_ORCHESTRATOR_CACHE_SIZE = 8
 
 
-@cache
+@lru_cache(maxsize=_ORCHESTRATOR_CACHE_SIZE)
 def _get_orchestrator(database_name: str) -> PitrOrchestratorService:
     cloud_sql_client = CloudSqlAdminClient(
         project_id=Settings.PROJECT_ID,
@@ -120,11 +121,17 @@ def restore_table_from_point_in_time(
 ) -> tuple[flask.Response | str, int]:
     """Cloud Function HTTP entry point."""
     request_id = str(uuid.uuid4())
-    data = request.get_json(silent=True) or {}
-    table_name = str(data.get("table_name", "")).strip()
-    timestamp_str = str(data.get("timestamp", "")).strip()
-    database_name = str(data.get("database_name", "")).strip()
-    if not table_name or not timestamp_str or not database_name:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
+
+    table_name = data.get("table_name")
+    timestamp_str = data.get("timestamp")
+    database_name = data.get("database_name")
+    if not all(
+        isinstance(value, str) and value.strip()
+        for value in (table_name, timestamp_str, database_name)
+    ):
         LOGGER.error(
             (
                 "Restore request rejected; request_id=%s reason=missing_parameters "
@@ -142,6 +149,13 @@ def restore_table_from_point_in_time(
             status=400,
             request_id=request_id,
         )
+
+    assert isinstance(table_name, str)
+    assert isinstance(timestamp_str, str)
+    assert isinstance(database_name, str)
+    table_name = table_name.strip()
+    timestamp_str = timestamp_str.strip()
+    database_name = database_name.strip()
 
     LOGGER.info(
         (
