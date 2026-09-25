@@ -94,6 +94,29 @@ def test_request_replaces_session_after_connection_failure(
     replacement_session.get.assert_called_once()
 
 
+def test_request_does_not_retry_non_idempotent_post(
+    client: CloudSqlAdminClient, session: Mock
+) -> None:
+    unavailable = Mock(status_code=503)
+    session.post.return_value = unavailable
+
+    response = client.request("post", "https://sqladmin.googleapis.com/test")
+
+    assert response is unavailable
+    session.post.assert_called_once()
+
+
+def test_request_does_not_reset_session_after_non_idempotent_post_failure(
+    client: CloudSqlAdminClient, session: Mock
+) -> None:
+    session.post.side_effect = requests.ConnectionError("connection failed")
+
+    with pytest.raises(requests.ConnectionError, match="connection failed"):
+        client.request("post", "https://sqladmin.googleapis.com/test")
+
+    session.close.assert_not_called()
+
+
 def test_wait_for_operation_polls_until_done(
     client: CloudSqlAdminClient, session: Mock
 ) -> None:

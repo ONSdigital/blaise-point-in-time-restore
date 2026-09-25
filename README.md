@@ -42,7 +42,7 @@ For any other database, the exact table supplied in `table_name` is restored. Th
 
 ## Deployment
 
-The Terraform deployment must package the repository root so that `main.py` and `requirements.txt` are at the root of the Cloud Function source archive.
+The Terraform deployment must package the repository root so that `main.py` is at the root of the Cloud Function source archive.
 
 The infrastructure must provide:
 

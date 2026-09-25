@@ -130,6 +130,24 @@ def test_restore_table_from_point_in_time_returns_400_for_missing_fields() -> No
     )
 
 
+def test_restore_table_from_point_in_time_returns_400_for_non_string_fields() -> None:
+    main_module = _load_main_module()
+    app = flask.Flask(__name__)
+
+    with app.test_request_context(
+        json={
+            "table_name": 123,
+            "timestamp": ["2026-07-08 14:30:00"],
+            "database_name": {"name": "blaise"},
+        }
+    ):
+        response, status = main_module.restore_table_from_point_in_time(flask.request)
+        payload = response.get_json()
+
+    assert status == http.HTTPStatus.BAD_REQUEST
+    assert payload["error"]["code"] == "missing_parameters"
+
+
 def test_restore_table_from_point_in_time_rejects_legacy_questionnaire_name() -> None:
     main_module = _load_main_module()
     app = flask.Flask(__name__)
@@ -221,3 +239,17 @@ def test_restore_table_from_point_in_time_returns_200_on_success() -> None:
 
     assert status == http.HTTPStatus.OK
     assert body == "OK"
+
+
+def test_orchestrator_cache_is_bounded() -> None:
+    main_module = _load_main_module()
+    main_module._get_orchestrator.cache_clear()
+
+    with patch.object(main_module, "CloudSqlAdminClient"):
+        for index in range(9):
+            main_module._get_orchestrator(f"database-{index}")
+
+    assert (
+        main_module._get_orchestrator.cache_info().currsize
+        == main_module._ORCHESTRATOR_CACHE_SIZE
+    )
