@@ -295,8 +295,18 @@ class PitrOrchestratorService:
                         clone_instance_name,
                     )
                     return
-            except Exception:
-                pass
+            except Exception as confirmation_error:
+                LOGGER.warning(
+                    (
+                        "Could not confirm temporary clone deletion after an "
+                        "uncertain response; request_id=%s clone=%s "
+                        "error_type=%s error=%s"
+                    ),
+                    request.request_id,
+                    clone_instance_name,
+                    type(confirmation_error).__name__,
+                    confirmation_error,
+                )
 
             LOGGER.error(
                 "Temporary clone cleanup could not be confirmed; request_id=%s "
